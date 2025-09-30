@@ -30,7 +30,7 @@ def admin_email():
 def admin_password():
     return os.getenv("ADMIN_PASSWORD")
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def test1_email():
     base = os.getenv("TEST1_EMAIL")
     return f"{base}+{int(time.time())}@gmail.com"

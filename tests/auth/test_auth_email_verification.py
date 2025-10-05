@@ -1,8 +1,9 @@
+import pytest
 import requests
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from utils.auth_flows import make_unique_username, fill_and_submit_signup
+from utils.auth_flows import make_unique_username, fill_and_submit_signup, login, logout, assert_logged_in, assert_no_verify_error, new_chrome_like_fixture
 from utils.email_verification import fetch_verify_url_from_mailhog
 from utils.mailhog_client import wait_for_email, extract_plain_html
 
@@ -14,7 +15,9 @@ def _dismiss_alert_if_present(driver, timeout=3):
         driver.switch_to.alert.accept()
     except Exception:
         pass
-    
+
+@pytest.mark.tcid("TC-AUTH-008")
+@pytest.mark.auth
 def test_email_verification_sent(driver, base_url, test1_email, test1_password):
     # Sign up
     uname = make_unique_username()
@@ -38,6 +41,8 @@ def test_email_verification_sent(driver, base_url, test1_email, test1_password):
     assert "just ignore this email" in body
     assert "Verify" in body
 
+@pytest.mark.tcid("TC-AUTH-013")
+@pytest.mark.auth
 def test_account_activation_via_email_link(driver, base_url, test1_email, test1_password):
     # Sign up
     uname = make_unique_username()
@@ -57,8 +62,10 @@ def test_account_activation_via_email_link(driver, base_url, test1_email, test1_
     # Assert DB state
     r = requests.get(f"{base_url}/api/auth/verify", params={"email": test1_email}, timeout=5)
     r.raise_for_status()
-    assert r.json().get("isVerified") is True
-    
+    assert r.json().get("isVerified") is True, "Account is not verified in DB"
+
+@pytest.mark.tcid("TC-AUTH-014")
+@pytest.mark.auth
 def test_verification_link_is_one_time_use(driver, base_url, test1_email, test1_password):
     # Sign up
     uname = make_unique_username()
@@ -82,13 +89,34 @@ def test_verification_link_is_one_time_use(driver, base_url, test1_email, test1_
         message="Expected an 'invalid' verification message but none appeared."
     )
 
+@pytest.mark.tcid("TC-AUTH-016")
+@pytest.mark.auth
+def test_account_activation_status_persists(driver, base_url, admin_email, admin_password):
+    # Login (session A)
+    login(driver, base_url, admin_email, admin_password)
+    assert_logged_in(driver, base_url)
+    assert_no_verify_error(driver)
+    
+    # Logout and login again - activation status should persist
+    logout(driver)
+    login(driver, base_url, admin_email, admin_password)
+    assert_logged_in(driver, base_url)
+    assert_no_verify_error(driver)
+    
+    # Open a fresh browser - activation status should persist
+    fresh_browser = new_chrome_like_fixture()
+    try:
+        login(fresh_browser, base_url, admin_email, admin_password)
+        assert_logged_in(driver, base_url)
+        assert_no_verify_error(driver)
+    finally:
+        fresh_browser.quit()
+
+@pytest.mark.tcid("TC-AUTH-017")
+@pytest.mark.auth
 def test_invalid_token_rejected(driver, base_url):
     driver.get(f"{base_url}/verify?token=abc")
     WebDriverWait(driver, 5).until(
         EC.presence_of_element_located((By.XPATH, "//*[contains(., 'Invalid or expired')]")),
         message="Expected an 'invalid' verification message but none appeared."
     )
-    
-    
-
-    

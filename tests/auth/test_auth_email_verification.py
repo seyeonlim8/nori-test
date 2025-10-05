@@ -1,33 +1,86 @@
+import requests
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from utils.auth_flows import make_unique_username, fill_and_submit_signup
+from utils.email_verification import fetch_verify_url_from_mailhog
 from utils.mailhog_client import wait_for_email, extract_plain_html
 
-def test_email_verification_template(driver, base_url, test1_email, test1_password):
-    driver.get(f"{base_url}/signup")
-    driver.find_element(By.XPATH, "//input[@placeholder='Username']").send_keys("Test1")
-    driver.find_element(By.XPATH, "//input[@placeholder='Email']").send_keys(test1_email)
-    driver.find_element(By.XPATH, "//input[@placeholder='Password']").send_keys(test1_password)
-    driver.find_element(By.XPATH, '//button[text()="Sign Up"]').click()
+SUBJECT = "NORI Email Verification"
 
+def _dismiss_alert_if_present(driver, timeout=3):
     try:
-        WebDriverWait(driver, 3).until(EC.alert_is_present())
+        WebDriverWait(driver, timeout).until(EC.alert_is_present())
         driver.switch_to.alert.accept()
     except Exception:
         pass
+    
+def test_email_verification_sent(driver, base_url, test1_email, test1_password):
+    # Sign up
+    uname = make_unique_username()
+    fill_and_submit_signup(driver, base_url, uname, test1_email, test1_password)
+    _dismiss_alert_if_present(driver)
 
-    subject = "NORI Email Verification"
-    msg = wait_for_email(test1_email, subject, timeout_s=30)
-    assert msg is not None, "Expected verification email was not received within 30s."
+    # Get the email
+    msg = wait_for_email(test1_email, SUBJECT, timeout_s=10)
+    assert msg is not None, "Expected verification email was not received within 10s."
 
+    # Verify email content
     hdr = msg["Content"]["Headers"]
     from_val = hdr.get("From", [""])[0]
     subj_val = hdr.get("Subject", [""])[0]
     assert "NORI" in from_val
-    assert subj_val == subject
-
+    assert subj_val == SUBJECT
+    
     plain, html = extract_plain_html(msg)
     body = html or plain
     assert "Verify your email to join NORI" in body
     assert "just ignore this email" in body
     assert "Verify" in body
+
+def test_account_activation_via_email_link(driver, base_url, test1_email, test1_password):
+    # Sign up
+    uname = make_unique_username()
+    fill_and_submit_signup(driver, base_url, uname, test1_email, test1_password)
+    _dismiss_alert_if_present(driver)
+
+    # Get the email 
+    verify_url = fetch_verify_url_from_mailhog(test1_email, SUBJECT, timeout_s=10)
+    driver.get(verify_url)
+    
+    # Assert success UI
+    WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located((By.XPATH, "//*[contains(., 'successfully verified')]"))
+    )
+    
+    # Assert DB state
+    r = requests.get(f"{base_url}/api/auth/verify", params={"email": test1_email}, timeout=5)
+    r.raise_for_status()
+    assert r.json().get("isVerified") is True
+    
+def test_verification_link_is_one_time_use(driver, base_url, test1_email, test1_password):
+    # Sign up
+    uname = make_unique_username()
+    fill_and_submit_signup(driver, base_url, uname, test1_email, test1_password)
+    _dismiss_alert_if_present(driver)
+    
+    # Get the email
+    verify_url = fetch_verify_url_from_mailhog(test1_email, SUBJECT, timeout_s=10)
+    
+    # Assert success UI - first click
+    driver.get(verify_url)
+    WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located((By.XPATH, "//*[contains(., 'successfully verified')]"))
+    )
+    
+    # Assert failure UI - second click
+    driver.get(verify_url)
+    WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located((By.XPATH, "//*[contains(., 'Invalid or expired')]"))
+    )
+
+
+    
+    
+
+    

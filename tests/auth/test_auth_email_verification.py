@@ -50,7 +50,8 @@ def test_account_activation_via_email_link(driver, base_url, test1_email, test1_
     
     # Assert success UI
     WebDriverWait(driver, 5).until(
-        EC.presence_of_element_located((By.XPATH, "//*[contains(., 'successfully verified')]"))
+        EC.presence_of_element_located((By.XPATH, "//*[contains(., 'successfully verified')]")),
+        message="Expected a verification success message but none appeared."
     )
     
     # Assert DB state
@@ -70,16 +71,23 @@ def test_verification_link_is_one_time_use(driver, base_url, test1_email, test1_
     # Assert success UI - first click
     driver.get(verify_url)
     WebDriverWait(driver, 5).until(
-        EC.presence_of_element_located((By.XPATH, "//*[contains(., 'successfully verified')]"))
+        EC.presence_of_element_located((By.XPATH, "//*[contains(., 'successfully verified')]")),
+        message="Expected a verification success message but none appeared."
     )
     
     # Assert failure UI - second click
     driver.get(verify_url)
     WebDriverWait(driver, 5).until(
-        EC.presence_of_element_located((By.XPATH, "//*[contains(., 'Invalid or expired')]"))
+        EC.presence_of_element_located((By.XPATH, "//*[contains(., 'Invalid or expired')]")),
+        message="Expected an 'invalid' verification message but none appeared."
     )
 
-
+def test_invalid_token_rejected(driver, base_url):
+    driver.get(f"{base_url}/verify?token=abc")
+    WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located((By.XPATH, "//*[contains(., 'Invalid or expired')]")),
+        message="Expected an 'invalid' verification message but none appeared."
+    )
     
     
 

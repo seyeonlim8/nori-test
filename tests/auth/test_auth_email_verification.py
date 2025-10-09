@@ -16,7 +16,7 @@ def _dismiss_alert_if_present(driver, timeout=3):
     except Exception:
         pass
 
-@pytest.mark.tcid("TC-AUTH-008")
+@pytest.mark.tcid("TC-AUTH-012")
 @pytest.mark.auth
 def test_email_verification_sent(driver, base_url, test1_email, test1_password):
     # Sign up
@@ -41,7 +41,7 @@ def test_email_verification_sent(driver, base_url, test1_email, test1_password):
     assert "just ignore this email" in body
     assert "Verify" in body
 
-@pytest.mark.tcid("TC-AUTH-013")
+@pytest.mark.tcid("TC-AUTH-017")
 @pytest.mark.auth
 def test_account_activation_via_email_link(driver, base_url, test1_email, test1_password):
     # Sign up
@@ -64,7 +64,7 @@ def test_account_activation_via_email_link(driver, base_url, test1_email, test1_
     r.raise_for_status()
     assert r.json().get("isVerified") is True, "Account is not verified in DB"
 
-@pytest.mark.tcid("TC-AUTH-014")
+@pytest.mark.tcid("TC-AUTH-018")
 @pytest.mark.auth
 def test_verification_link_is_one_time_use(driver, base_url, test1_email, test1_password):
     # Sign up
@@ -89,7 +89,7 @@ def test_verification_link_is_one_time_use(driver, base_url, test1_email, test1_
         message="Expected an 'invalid' verification message but none appeared."
     )
 
-@pytest.mark.tcid("TC-AUTH-016")
+@pytest.mark.tcid("TC-AUTH-020")
 @pytest.mark.auth
 def test_account_activation_status_persists(driver, base_url, admin_email, admin_password):
     # Login (session A)
@@ -112,7 +112,7 @@ def test_account_activation_status_persists(driver, base_url, admin_email, admin
     finally:
         fresh_browser.quit()
 
-@pytest.mark.tcid("TC-AUTH-017")
+@pytest.mark.tcid("TC-AUTH-021")
 @pytest.mark.auth
 def test_invalid_token_rejected(driver, base_url):
     driver.get(f"{base_url}/verify?token=abc")

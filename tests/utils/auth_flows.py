@@ -13,6 +13,8 @@ def fill_and_submit_signup(driver, base_url, username, email, password):
     driver.find_element(By.XPATH, "//input[@placeholder='Email']").send_keys(email)
     driver.find_element(By.XPATH, "//input[@placeholder='Password']").clear()
     driver.find_element(By.XPATH, "//input[@placeholder='Password']").send_keys(password)
+    driver.find_element(By.XPATH, "//input[@placeholder='Confirm Password']").clear()
+    driver.find_element(By.XPATH, "//input[@placeholder='Confirm Password']").send_keys(password)
     driver.find_element(By.XPATH, '//button[normalize-space()="Sign Up"]').click()
 
 def login(driver, base_url, email, password):

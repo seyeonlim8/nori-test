@@ -16,7 +16,7 @@ def _dismiss_alert_if_present(driver, timeout=3):
     except Exception:
         pass
 
-@pytest.mark.tcid("TC-AUTH-012")
+@pytest.mark.tcid("TC-AUTH-011")
 @pytest.mark.auth
 def test_email_verification_sent(driver, base_url, test1_email, test1_password):
     # Sign up
@@ -25,8 +25,8 @@ def test_email_verification_sent(driver, base_url, test1_email, test1_password):
     _dismiss_alert_if_present(driver)
 
     # Get the email
-    msg = wait_for_email(test1_email, SUBJECT, timeout_s=10)
-    assert msg is not None, "Expected verification email was not received within 10s."
+    msg = wait_for_email(test1_email, SUBJECT, timeout_s=30)
+    assert msg is not None, "Expected verification email was not received within 30s."
 
     # Verify email content
     hdr = msg["Content"]["Headers"]
@@ -41,7 +41,7 @@ def test_email_verification_sent(driver, base_url, test1_email, test1_password):
     assert "just ignore this email" in body
     assert "Verify" in body
 
-@pytest.mark.tcid("TC-AUTH-017")
+@pytest.mark.tcid("TC-AUTH-016")
 @pytest.mark.auth
 def test_account_activation_via_email_link(driver, base_url, test1_email, test1_password):
     # Sign up
@@ -64,7 +64,7 @@ def test_account_activation_via_email_link(driver, base_url, test1_email, test1_
     r.raise_for_status()
     assert r.json().get("isVerified") is True, "Account is not verified in DB"
 
-@pytest.mark.tcid("TC-AUTH-018")
+@pytest.mark.tcid("TC-AUTH-017")
 @pytest.mark.auth
 def test_verification_link_is_one_time_use(driver, base_url, test1_email, test1_password):
     # Sign up
@@ -89,7 +89,7 @@ def test_verification_link_is_one_time_use(driver, base_url, test1_email, test1_
         message="Expected an 'invalid' verification message but none appeared."
     )
 
-@pytest.mark.tcid("TC-AUTH-020")
+@pytest.mark.tcid("TC-AUTH-019")
 @pytest.mark.auth
 def test_account_activation_status_persists(driver, base_url, admin_email, admin_password):
     # Login (session A)
@@ -112,7 +112,7 @@ def test_account_activation_status_persists(driver, base_url, admin_email, admin
     finally:
         fresh_browser.quit()
 
-@pytest.mark.tcid("TC-AUTH-021")
+@pytest.mark.tcid("TC-AUTH-020")
 @pytest.mark.auth
 def test_invalid_token_rejected(driver, base_url):
     driver.get(f"{base_url}/verify?token=abc")

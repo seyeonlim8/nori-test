@@ -32,14 +32,12 @@ def test_email_verification_sent(driver, base_url, test1_email, test1_password):
     hdr = msg["Content"]["Headers"]
     from_val = hdr.get("From", [""])[0]
     subj_val = hdr.get("Subject", [""])[0]
-    assert "NORI" in from_val
-    assert subj_val == SUBJECT
+    assert "NORI" in from_val, "Email is not from NORI"
+    assert subj_val == SUBJECT, "Incorrect email subject"
     
     plain, html = extract_plain_html(msg)
     body = html or plain
-    assert "Verify your email to join NORI" in body
-    assert "just ignore this email" in body
-    assert "Verify" in body
+    assert "Verify your email to join NORI" in body and "just ignore this email" in body and "Verify" in body, "Incorrect email body"
 
 @pytest.mark.tcid("TC-AUTH-016")
 @pytest.mark.auth

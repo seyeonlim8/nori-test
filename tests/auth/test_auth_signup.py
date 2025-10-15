@@ -68,12 +68,10 @@ def test_duplicate_username_feedback(driver, base_url):
     driver.get(f"{base_url}/signup")
     # Username test1 already exists in DB
     driver.find_element(*USERNAME).send_keys("Test1")
-    try:
-        error_msg = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located((USERNAME_FB))
-        )
-    except Exception:
-        pytest.fail("Username feedback error message not found for duplicate username")
+    error_msg = WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located((USERNAME_FB)),
+        message="Username feedback error message not found for duplicate username"
+    )
     assert "Username is already in use" in error_msg.text
     
 @pytest.mark.tcid("TC-AUTH-004")
@@ -81,12 +79,10 @@ def test_duplicate_username_feedback(driver, base_url):
 def test_short_username_feedback(driver, base_url):
     driver.get(f"{base_url}/signup")
     driver.find_element(*USERNAME).send_keys("ab")
-    try:
-        error_msg = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located((USERNAME_FB))
-        )
-    except Exception:
-        pytest.fail("Username feedback error message not found")
+    error_msg = WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located((USERNAME_FB)),
+        message="Username feedback error message not found"
+    )
     assert "Username must be 4-19 characters" in error_msg.text
     
 @pytest.mark.tcid("TC-AUTH-005")
@@ -94,12 +90,10 @@ def test_short_username_feedback(driver, base_url):
 def test_long_username_feedback(driver, base_url):
     driver.get(f"{base_url}/signup")
     driver.find_element(*USERNAME).send_keys("abcdefghiklmnopqrstuvwxyz")
-    try:
-        error_msg = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located((USERNAME_FB))
-        )
-    except Exception:
-        pytest.fail("Username feedback error message not found")
+    error_msg = WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located((USERNAME_FB)),
+        message="Username feedback error message not found"
+    )
     assert "Username must be 4-19 characters" in error_msg.text
     
 @pytest.mark.tcid("TC-AUTH-006")
@@ -107,12 +101,10 @@ def test_long_username_feedback(driver, base_url):
 def test_special_char_username_feedback(driver, base_url):
     driver.get(f"{base_url}/signup")
     driver.find_element(*USERNAME).send_keys("Test#$%")
-    try:
-        error_msg = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located((USERNAME_FB))
-        )
-    except Exception:
-        pytest.fail("Username feedback error message not found")
+    error_msg = WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located((USERNAME_FB)),
+        message="Username feedback error message not found"
+    )
     assert "characters, letters and numbers only" in error_msg.text
 
 @pytest.mark.tcid("TC-AUTH-007")

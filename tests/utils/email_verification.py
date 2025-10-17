@@ -1,14 +1,14 @@
+import datetime
 import re, quopri
 from utils.mailhog_client import wait_for_email, extract_plain_html
 
 VERIFY_LINK_PATTERN = re.compile(r'https?://[^"\s<>]+/verify\?token=[^"\s<>]+')
 
-def fetch_verify_url_from_mailhog(to_email: str, subject: str, timeout_s: int = 10) -> str:
+def fetch_verify_url_from_mailhog(to_email: str, subject: str, timeout_s: int = 10, since: datetime.datetime | None = None,) -> str:
     """
     Waits for the email, normalizes the body, and returns the verify URL.
-    Raises AssertionError with a helpful message if anything is missing.
     """
-    msg = wait_for_email(to_email, subject, timeout_s=timeout_s)
+    msg = wait_for_email(to_email, subject, timeout_s=timeout_s, since=since)
     assert msg, f"Expected email with subject {subject!r} to {to_email} not received within {timeout_s}s."
 
     plain, html = extract_plain_html(msg)
@@ -20,6 +20,6 @@ def fetch_verify_url_from_mailhog(to_email: str, subject: str, timeout_s: int = 
 
     # Verify that verification link exists in email
     m = VERIFY_LINK_PATTERN.search(decoded)
-    if not m:
-        raise AssertionError(f"Verification link not found in email body.")
+    assert m, "Verification link not found in email body."
+    
     return m.group(0)

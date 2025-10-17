@@ -1,3 +1,4 @@
+import datetime
 import pytest
 import requests
 from selenium.webdriver.common.by import By
@@ -8,6 +9,7 @@ from utils.email_verification import fetch_verify_url_from_mailhog
 from utils.mailhog_client import wait_for_email, extract_plain_html
 
 SUBJECT = "NORI Email Verification"
+RESEND_BTN = (By.CSS_SELECTOR, "[data-testid='resend-verification-btn']")
 
 def _dismiss_alert_if_present(driver, timeout=3):
     try:
@@ -38,6 +40,30 @@ def test_email_verification_sent(driver, base_url, test1_email, test1_password):
     plain, html = extract_plain_html(msg)
     body = html or plain
     assert "Verify your email to join NORI" in body and "just ignore this email" in body and "Verify" in body, "Incorrect email body"
+
+@pytest.mark.tcid("TC-AUTH-013")
+@pytest.mark.auth
+def test_token_uniqueness_with_resend(driver, base_url, test1_email, test1_password):
+    uname = make_unique_username()
+    since = datetime.datetime.now(datetime.timezone.utc)
+    fill_and_submit_signup(driver, base_url, uname, test1_email, test1_password)
+    _dismiss_alert_if_present(driver)
+    
+    # Get first token
+    first_verify_url = fetch_verify_url_from_mailhog(test1_email, SUBJECT, timeout_s=10, since=since)
+    
+    # Resend verification email
+    login(driver, base_url, test1_email, test1_password)
+    resend_btn = WebDriverWait(driver, 5).until(
+        EC.element_to_be_clickable(RESEND_BTN),
+        message="Resend button not found/clickable"
+    )
+    since = datetime.datetime.now(datetime.timezone.utc)
+    resend_btn.click()
+    
+    # Get second token
+    second_verify_url = fetch_verify_url_from_mailhog(test1_email, SUBJECT, timeout_s=10, since=since)
+    assert first_verify_url != second_verify_url
 
 @pytest.mark.tcid("TC-AUTH-016")
 @pytest.mark.auth

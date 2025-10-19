@@ -1,6 +1,6 @@
 import datetime
 import re, quopri
-from utils.mailhog_client import wait_for_email, extract_plain_html
+from tests.utils.mailhog_client import wait_for_email, extract_plain_html
 
 VERIFY_LINK_PATTERN = re.compile(r'https?://[^"\s<>]+/verify\?token=[^"\s<>]+')
 

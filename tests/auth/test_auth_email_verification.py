@@ -4,9 +4,9 @@ import requests
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from utils.auth_flows import make_unique_username, fill_and_submit_signup, login, logout, assert_logged_in, assert_no_verify_error, new_chrome_like_fixture
-from utils.email_verification import fetch_verify_url_from_mailhog
-from utils.mailhog_client import wait_for_email, extract_plain_html
+from tests.utils.auth_flows import make_unique_username, fill_and_submit_signup, login, logout, assert_logged_in, assert_no_verify_error, new_chrome_like_fixture
+from tests.utils.email_verification import fetch_verify_url_from_mailhog
+from tests.utils.mailhog_client import wait_for_email, extract_plain_html
 
 SUBJECT = "NORI Email Verification"
 RESEND_BTN = (By.CSS_SELECTOR, "[data-testid='resend-verification-btn']")
@@ -64,6 +64,45 @@ def test_token_uniqueness_with_resend(driver, base_url, test1_email, test1_passw
     # Get second token
     second_verify_url = fetch_verify_url_from_mailhog(test1_email, SUBJECT, timeout_s=10, since=since)
     assert first_verify_url != second_verify_url
+    
+@pytest.mark.tcid("TC-AUTH-014")
+@pytest.mark.auth
+def test_old_token_is_invalid(driver, base_url, test1_email, test1_password):
+    uname = make_unique_username()
+    since = datetime.datetime.now(datetime.timezone.utc)
+    fill_and_submit_signup(driver, base_url, uname, test1_email, test1_password)
+    _dismiss_alert_if_present(driver)
+    
+    # Get first token
+    first_verify_url = fetch_verify_url_from_mailhog(test1_email, SUBJECT, timeout_s=10, since=since)
+    
+    # Resend verification email
+    login(driver, base_url, test1_email, test1_password)
+    resend_btn = WebDriverWait(driver, 5).until(
+        EC.element_to_be_clickable(RESEND_BTN),
+        message="Resend button not found/clickable"
+    )
+    since = datetime.datetime.now(datetime.timezone.utc)
+    resend_btn.click()
+    
+    # Get second token
+    second_verify_url = fetch_verify_url_from_mailhog(test1_email, SUBJECT, timeout_s=10, since=since)
+    
+    # Assert failure UI - old token
+    driver.get(first_verify_url)
+    WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located((By.XPATH, "//*[contains(., 'Invalid or expired')]")),
+        message="Expected an 'invalid' verification message but none appeared."
+    )
+    
+    # Assert success UI - new token
+    driver.get(second_verify_url)
+    WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located((By.XPATH, "//*[contains(., 'successfully verified')]")),
+        message="Expected a verification success message but none appeared."
+    )    
+    
+    
 
 @pytest.mark.tcid("TC-AUTH-016")
 @pytest.mark.auth
@@ -113,7 +152,7 @@ def test_verification_link_is_one_time_use(driver, base_url, test1_email, test1_
         message="Expected an 'invalid' verification message but none appeared."
     )
 
-@pytest.mark.tcid("TC-AUTH-019")
+@pytest.mark.tcid("TC-AUTH-018")
 @pytest.mark.auth
 def test_account_activation_status_persists(driver, base_url, admin_email, admin_password):
     # Login (session A)
@@ -136,7 +175,7 @@ def test_account_activation_status_persists(driver, base_url, admin_email, admin
     finally:
         fresh_browser.quit()
 
-@pytest.mark.tcid("TC-AUTH-020")
+@pytest.mark.tcid("TC-AUTH-019")
 @pytest.mark.auth
 def test_invalid_token_rejected(driver, base_url):
     driver.get(f"{base_url}/verify?token=abc")

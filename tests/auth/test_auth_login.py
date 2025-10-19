@@ -3,8 +3,8 @@ import pytest
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from utils.auth_flows import login, fill_and_submit_signup, make_unique_username
-from utils.mailhog_client import wait_for_email, clear_inbox
+from tests.utils.auth_flows import login, fill_and_submit_signup, make_unique_username, assert_no_sensitive_data_in_storage
+from tests.utils.mailhog_client import wait_for_email
 
 LOGIN_BTN = (By.XPATH, '//button[text()="Log In"]')
 LOGIN_ERR = (By.CSS_SELECTOR, "[data-testid='credentials-error']")
@@ -19,7 +19,7 @@ def _dismiss_alert_if_present(driver, timeout=3):
     except Exception:
         pass
     
-@pytest.mark.tcid("TC-AUTH-021")
+@pytest.mark.tcid("TC-AUTH-020")
 @pytest.mark.auth
 def test_login_success(driver, base_url, admin_email, admin_password):
     login(driver, base_url, admin_email, admin_password)
@@ -30,7 +30,7 @@ def test_login_success(driver, base_url, admin_email, admin_password):
     nav_hello = WebDriverWait(driver, 5).until(EC.presence_of_element_located(NAV_HELLO))
     assert nav_hello.text.startswith("Hello"), "Expected greeting to start with 'Hello'"
 
-@pytest.mark.tcid("TC-AUTH-022")
+@pytest.mark.tcid("TC-AUTH-021")
 @pytest.mark.auth
 def test_login_invalid_credentials(driver, base_url, test1_email, test1_password):
     # Invalid email, valid password
@@ -48,7 +48,7 @@ def test_login_invalid_credentials(driver, base_url, test1_email, test1_password
     )
     assert "Invalid email or password" in error_msg.text, "Expected error message for invalid credentials not found."
 
-@pytest.mark.tcid("TC-AUTH-023")
+@pytest.mark.tcid("TC-AUTH-022")
 @pytest.mark.auth
 def test_login_attempts_remaining_msg(driver, base_url): 
     driver.get(f"{base_url}/login") # DO NOT REMOVE THIS LINE  
@@ -73,7 +73,7 @@ def test_login_attempts_remaining_msg(driver, base_url):
     )
     assert "3 attempts remaining" in error_msg.text, "Expected 3 attempts remaining message not found."
 
-@pytest.mark.tcid("TC-AUTH-024")
+@pytest.mark.tcid("TC-AUTH-023")
 @pytest.mark.auth
 def test_lockout_msg(driver, base_url):
     driver.get(f"{base_url}/login") # DO NOT REMOVE THIS LINE
@@ -99,7 +99,7 @@ def test_lockout_msg(driver, base_url):
             assert "Please try again later" in error_msg.text, "Missing 'Please try again later' on 5th failure."
             assert "Remaining lockout time" in error_msg.text, "Missing 'Remaining lockout time' on 5th failure."
             
-@pytest.mark.tcid("TC-AUTH-026")
+@pytest.mark.tcid("TC-AUTH-025")
 @pytest.mark.auth
 def test_resend_verification_button(driver, base_url, admin_email, test1_email, test1_password):
     # Create new account without verification
@@ -135,7 +135,7 @@ def test_resend_verification_button(driver, base_url, admin_email, test1_email, 
     assert "NORI" in from_val, "Email is not from NORI"
     assert subj_val == SUBJECT, "Incorrect subject"
     
-@pytest.mark.tcid("TC-AUTH-027")
+@pytest.mark.tcid("TC-AUTH-026")
 @pytest.mark.auth
 def test_session_persists_across_tabs(driver, base_url, admin_email, admin_password):
     login(driver, base_url, admin_email, admin_password)
@@ -156,7 +156,7 @@ def test_session_persists_across_tabs(driver, base_url, admin_email, admin_passw
     driver.close()
     driver.switch_to.window(driver.window_handles[0])
     
-@pytest.mark.tcid("TC-AUTH-028")
+@pytest.mark.tcid("TC-AUTH-027")
 @pytest.mark.auth
 def test_session_persists_after_refresh(driver, base_url, admin_email, admin_password):
     login(driver, base_url, admin_email, admin_password)
@@ -172,7 +172,7 @@ def test_session_persists_after_refresh(driver, base_url, admin_email, admin_pas
         "User failed to login"
     )
 
-@pytest.mark.tcid("TC-AUTH-027")
+@pytest.mark.tcid("TC-AUTH-028")
 @pytest.mark.auth
 def test_no_session_data_in_storage(driver, base_url, admin_email, admin_password):
     login(driver, base_url, admin_email, admin_password)
@@ -181,17 +181,4 @@ def test_no_session_data_in_storage(driver, base_url, admin_email, admin_passwor
         "User failed to login"
     )
     
-    local_data = driver.execute_script("return window.localStorage;")
-    session_data = driver.execute_script("return window.sessionStorage;")
-    
-    all_keys = list(local_data.keys()) + list(session_data.keys())
-    all_values = list(local_data.values()) + list(session_data.values())
-    
-    forbidden_keywords = ["token", "auth", "session", "jwt", "password"]
-    for key, value in zip(all_keys, all_values):
-        key_lower = str(key).lower()
-        value_lower = str(value).lower()
-        for word in forbidden_keywords:
-            assert word not in key_lower and word not in value_lower, (
-                f"Sensitive data found in storage: {key} -> {value}"
-            )
+    assert_no_sensitive_data_in_storage(driver)

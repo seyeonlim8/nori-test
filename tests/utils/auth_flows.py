@@ -39,7 +39,21 @@ def login(driver, base_url, email, password):
     driver.find_element(By.XPATH, "//input[@placeholder='Password']").clear()
     driver.find_element(By.XPATH, "//input[@placeholder='Password']").send_keys(password)
     driver.find_element(By.XPATH, '//button[text()="Log In"]').click()
-    
+
+def logout(driver):
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.common.action_chains import ActionChains
+    from selenium.webdriver.support import expected_conditions as EC
+
+    nav_hello = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='nav-hello']")))
+    ActionChains(driver).move_to_element(nav_hello).perform() # hover
+    logout_btn = WebDriverWait(driver, 5).until(
+        EC.visibility_of_element_located((By.CSS_SELECTOR, "[data-testid='logout-btn']"))
+    )
+    WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "[data-testid='logout-btn']")))
+    logout_btn.click()
+     
 def assert_logged_in(driver, base_url):
     from selenium.webdriver.common.by import By
     from selenium.webdriver.support.ui import WebDriverWait
@@ -78,16 +92,18 @@ def new_chrome_like_fixture():
     d = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=opts)
     return d
 
-def logout(driver):
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.common.action_chains import ActionChains
-    from selenium.webdriver.support import expected_conditions as EC
-
-    nav_hello = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='nav-hello']")))
-    ActionChains(driver).move_to_element(nav_hello).perform() # hover
-    logout_btn = WebDriverWait(driver, 5).until(
-        EC.visibility_of_element_located((By.CSS_SELECTOR, "[data-testid='logout-btn']"))
-    )
-    WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "[data-testid='logout-btn']")))
-    logout_btn.click()
+def assert_no_sensitive_data_in_storage(driver):
+    local_data = driver.execute_script("return window.localStorage;")
+    session_data = driver.execute_script("return window.sessionStorage;")
+    
+    all_keys = list(local_data.keys()) + list(session_data.keys())
+    all_values = list(local_data.values()) + list(session_data.values())
+    
+    forbidden_keywords = ["token", "auth", "session", "jwt", "password"]
+    for key, value in zip(all_keys, all_values):
+        key_lower = str(key).lower()
+        value_lower = str(value).lower()
+        for word in forbidden_keywords:
+            assert word not in key_lower and word not in value_lower, (
+                f"Sensitive data found in storage: {key} -> {value}"
+            )

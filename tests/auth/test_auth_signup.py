@@ -2,7 +2,7 @@ import pytest
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from utils.auth_flows import fill_signup_form, fill_and_submit_signup, make_unique_username
+from tests.utils.auth_flows import fill_signup_form, fill_and_submit_signup, make_unique_username
 
 SIGNUP_BTN = (By.XPATH, '//button[text()="Sign Up"]')
 USERNAME = (By.XPATH, "//input[@placeholder='Username']")

@@ -49,9 +49,8 @@ def logout(driver):
     nav_hello = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='nav-hello']")))
     ActionChains(driver).move_to_element(nav_hello).perform() # hover
     logout_btn = WebDriverWait(driver, 5).until(
-        EC.visibility_of_element_located((By.CSS_SELECTOR, "[data-testid='logout-btn']"))
+        EC.element_to_be_clickable((By.CSS_SELECTOR, "[data-testid='logout-btn']"))
     )
-    WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "[data-testid='logout-btn']")))
     logout_btn.click()
      
 def assert_logged_in(driver, base_url):

@@ -3,39 +3,15 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from tests.utils.auth_flows import login
+from tests.utils.flashcards_flows import open_flashcards_page
 
-STUDY_BTN = (By.CSS_SELECTOR, "[data-testid='study-btn']")
-FC_BTN = (By.CSS_SELECTOR, "[data-testid='flashcards-btn']")
-N2_BTN = (By.CSS_SELECTOR, "[data-testid='level-btn-n2']")
 VOCAB = (By.CSS_SELECTOR, "[data-testid='vocabulary']")
 FURIGANA = (By.CSS_SELECTOR, "[data-testid='furigana']")
 
 @pytest.mark.tcid("TC-FC-001")
 @pytest.mark.auth
 def test_flashcard_vocabulary_visible(driver, base_url, admin_email, admin_password):
-    login(driver, base_url, admin_email, admin_password)
-    WebDriverWait(driver, 5).until(
-        EC.url_to_be(f"{base_url}/"),
-        "Did not navigate to main page"
-    )
-
-    # Navigate to flashcards page (N2)
-    study_btn = WebDriverWait(driver, 5).until(
-        EC.presence_of_element_located(STUDY_BTN),
-        "Study button is not found"
-    )
-    ActionChains(driver).move_to_element(study_btn).perform()
-    flashcards_btn = WebDriverWait(driver, 5).until(
-        EC.element_to_be_clickable(FC_BTN),
-        "Flashcards button is not clickable"
-    )
-    flashcards_btn.click()
-    level_btn = WebDriverWait(driver, 5).until(
-        EC.element_to_be_clickable(N2_BTN),
-        "N2 button is not clickable"
-    )
-    level_btn.click()
+    open_flashcards_page(driver, base_url, admin_email, admin_password, "n2")
 
     # Assert vocabulary is visible
     vocab_element = WebDriverWait(driver, 5).until(
@@ -51,4 +27,19 @@ def test_flashcard_vocabulary_visible(driver, base_url, admin_email, admin_passw
         "Furigana should be hidden at start"
     )
     
-    
+@pytest.mark.tcid("TC-FC-002")
+@pytest.mark.auth
+def test_japanese_characters_render(driver, base_url, admin_email, admin_password):
+    open_flashcards_page(driver, base_url, admin_email, admin_password, "n2")
+
+    vocab = WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located(VOCAB)
+    )
+    text = vocab.text
+    assert text.strip(), "Vocabulary text is empty"
+    assert not any(ch in text for ch in "□?"), "Broken glyphs detected"
+
+    font = driver.execute_script(
+        "return window.getComputedStyle(document.querySelector('[data-testid=\"vocabulary\"]')).fontFamily"
+    )
+    assert any(f in font for f in ["Noto Sans JP", "sans-serif"]), f"Unexpected font: {font}"

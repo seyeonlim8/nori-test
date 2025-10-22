@@ -1,7 +1,9 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options as ChromeOptions
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.safari.webdriver import WebDriver as SafariDriver
 from dotenv import load_dotenv
 import pytest
 import os
@@ -9,12 +11,36 @@ import time
 
 load_dotenv()
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--browser",
+        action="store",
+        default="chrome",
+        help="Browser to run tests on (chrome or safari)"
+    )
+    
 @pytest.fixture
-def driver():
-    options = Options()
-    options.add_argument("--headless=new")
-    options.add_argument("--window-size=1366,900")
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+def driver(request):
+    browser = request.config.getoption("--browser")
+
+    if browser == "chrome":
+        options = ChromeOptions()
+        options.add_argument("--headless=new")
+        options.add_argument("--window-size=1366,900")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--no-sandbox")
+
+        driver = webdriver.Chrome(
+            service=Service(ChromeDriverManager().install()),
+            options=options
+        )
+
+    elif browser == "safari":
+        driver = SafariDriver()
+
+    else:
+        raise ValueError(f"Unsupported browser: {browser}")
+
     yield driver
     driver.quit()
 

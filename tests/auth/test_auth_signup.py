@@ -16,6 +16,8 @@ EMAIL_ERR = (By.CSS_SELECTOR, "[data-testid='email-error']")
 @pytest.mark.tcid("TC-AUTH-001")
 @pytest.mark.auth
 def test_signup_success(driver, base_url, test1_email, test1_password):
+    """Verify signup succeeds: shows success alert and redirects to login page."""
+
     uname = make_unique_username()
     fill_and_submit_signup(driver, base_url, uname, test1_email, test1_password)
 
@@ -31,6 +33,8 @@ def test_signup_success(driver, base_url, test1_email, test1_password):
 @pytest.mark.tcid("TC-AUTH-002")
 @pytest.mark.auth
 def test_signup_positive_feedback(driver, base_url, test1_email, test1_password):
+    """Verify positive inline feedback: username available, no email/confirm errors, all password rules green."""
+
     uname = make_unique_username()
     fill_signup_form(driver, base_url, uname, test1_email, test1_password)
 
@@ -65,6 +69,8 @@ def test_signup_positive_feedback(driver, base_url, test1_email, test1_password)
 @pytest.mark.tcid("TC-AUTH-003")
 @pytest.mark.auth
 def test_duplicate_username_feedback(driver, base_url):
+    """Verify duplicate username shows 'already in use' feedback message."""
+
     driver.get(f"{base_url}/signup")
     # Username test1 already exists in DB
     driver.find_element(*USERNAME).send_keys("Test1")
@@ -77,6 +83,8 @@ def test_duplicate_username_feedback(driver, base_url):
 @pytest.mark.tcid("TC-AUTH-004")
 @pytest.mark.auth
 def test_short_username_feedback(driver, base_url):
+    """Verify too-short username shows proper validation message (min length)."""
+
     driver.get(f"{base_url}/signup")
     driver.find_element(*USERNAME).send_keys("ab")
     error_msg = WebDriverWait(driver, 5).until(
@@ -88,6 +96,8 @@ def test_short_username_feedback(driver, base_url):
 @pytest.mark.tcid("TC-AUTH-005")
 @pytest.mark.auth
 def test_long_username_feedback(driver, base_url):
+    """Verify too-long username shows proper validation message (max length)."""
+
     driver.get(f"{base_url}/signup")
     driver.find_element(*USERNAME).send_keys("abcdefghiklmnopqrstuvwxyz")
     error_msg = WebDriverWait(driver, 5).until(
@@ -99,6 +109,8 @@ def test_long_username_feedback(driver, base_url):
 @pytest.mark.tcid("TC-AUTH-006")
 @pytest.mark.auth
 def test_special_char_username_feedback(driver, base_url):
+    """Verify username with special characters shows allowed-characters validation message."""
+
     driver.get(f"{base_url}/signup")
     driver.find_element(*USERNAME).send_keys("Test#$%")
     error_msg = WebDriverWait(driver, 5).until(
@@ -118,6 +130,8 @@ def test_special_char_username_feedback(driver, base_url):
     ("user.name+tag@ex.co", True),
 ])
 def test_invalid_email_format_feedback(driver, base_url, value, valid):
+    """Verify error visibility for invalid vs valid email formats."""
+
     driver.get(f"{base_url}/signup")
     driver.find_element(*EMAIL).send_keys(value)
 
@@ -137,6 +151,8 @@ def test_invalid_email_format_feedback(driver, base_url, value, valid):
 @pytest.mark.tcid("TC-AUTH-008")
 @pytest.mark.auth
 def test_live_password_checklist_update(driver, base_url):
+    """Verify password checklist updates live and all rules become green when requirements are met."""
+
     driver.get(f"{base_url}/signup")
     password = WebDriverWait(driver, 5).until(
         EC.presence_of_element_located(PASSWORD)
@@ -193,6 +209,8 @@ def test_live_password_checklist_update(driver, base_url):
 @pytest.mark.tcid("TC-AUTH-009")
 @pytest.mark.auth
 def test_confirm_password_feedback(driver, base_url):
+    """Verify mismatched confirm password shows the proper error message."""
+
     driver.get(f"{base_url}/signup")
     pw = driver.find_element(*PASSWORD)
     confirm_pw = driver.find_element(*CONFIRM_PW)
@@ -209,6 +227,8 @@ def test_confirm_password_feedback(driver, base_url):
 @pytest.mark.tcid("TC-AUTH-010")
 @pytest.mark.auth
 def test_signup_button_disabled(driver, base_url, test1_email, test1_password):
+    """Verify signup button enabled/disabled state based on field completeness and validity."""
+
     driver.get(f"{base_url}/signup")
     signup_btn = driver.find_element(*SIGNUP_BTN)
 

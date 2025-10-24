@@ -11,17 +11,12 @@ LOGIN_ERR = (By.CSS_SELECTOR, "[data-testid='credentials-error']")
 NAV_HELLO = (By.CSS_SELECTOR, "[data-testid='nav-hello']")
 RESEND_BTN = (By.CSS_SELECTOR, "[data-testid='resend-verification-btn']")
 SUBJECT = "NORI Email Verification"
-
-def _dismiss_alert_if_present(driver, timeout=3):
-    try:
-        WebDriverWait(driver, timeout).until(EC.alert_is_present())
-        driver.switch_to.alert.accept()
-    except Exception:
-        pass
     
 @pytest.mark.tcid("TC-AUTH-020")
 @pytest.mark.auth
 def test_login_success(driver, base_url, admin_email, admin_password):
+    """Verify successful login redirects to home and shows greeting."""
+
     login(driver, base_url, admin_email, admin_password)
 
     WebDriverWait(driver, 5).until(EC.url_to_be(f"{base_url}/"))
@@ -33,6 +28,8 @@ def test_login_success(driver, base_url, admin_email, admin_password):
 @pytest.mark.tcid("TC-AUTH-021")
 @pytest.mark.auth
 def test_login_invalid_credentials(driver, base_url, test1_email, test1_password):
+    """Verify error message appears for invalid email and invalid password cases."""
+
     # Invalid email, valid password
     login(driver, base_url, "randomemail@random.com", test1_password)
     error_msg = WebDriverWait(driver, 5).until(
@@ -51,6 +48,8 @@ def test_login_invalid_credentials(driver, base_url, test1_email, test1_password
 @pytest.mark.tcid("TC-AUTH-022")
 @pytest.mark.auth
 def test_login_attempts_remaining_msg(driver, base_url): 
+    """Verify remaining attempts message decreases after each failed login attempt."""
+
     driver.get(f"{base_url}/login") # DO NOT REMOVE THIS LINE  
     # Start clean
     driver.execute_script("localStorage.clear(); sessionStorage.clear();")
@@ -76,6 +75,8 @@ def test_login_attempts_remaining_msg(driver, base_url):
 @pytest.mark.tcid("TC-AUTH-023")
 @pytest.mark.auth
 def test_lockout_msg(driver, base_url):
+    """Verify lockout message and disabled login button after 5 failed attempts."""
+
     driver.get(f"{base_url}/login") # DO NOT REMOVE THIS LINE
     # Start clean
     driver.execute_script("localStorage.clear(); sessionStorage.clear();")
@@ -101,7 +102,9 @@ def test_lockout_msg(driver, base_url):
             
 @pytest.mark.tcid("TC-AUTH-025")
 @pytest.mark.auth
-def test_resend_verification_button(driver, base_url, admin_email, test1_email, test1_password):
+def test_resend_verification_button(driver, base_url, test1_email, test1_password):
+    """Verify resend verification flow sends a new email and has expected headers/subject."""
+
     # Create new account without verification
     uname = make_unique_username()
     fill_and_submit_signup(driver, base_url, uname, test1_email, test1_password)
@@ -138,6 +141,8 @@ def test_resend_verification_button(driver, base_url, admin_email, test1_email, 
 @pytest.mark.tcid("TC-AUTH-026")
 @pytest.mark.auth
 def test_session_persists_across_tabs(driver, base_url, admin_email, admin_password):
+    """Verify session remains active when opening a new browser tab."""
+
     login(driver, base_url, admin_email, admin_password)
     WebDriverWait(driver, 5).until(
         EC.presence_of_element_located(NAV_HELLO),
@@ -159,6 +164,8 @@ def test_session_persists_across_tabs(driver, base_url, admin_email, admin_passw
 @pytest.mark.tcid("TC-AUTH-027")
 @pytest.mark.auth
 def test_session_persists_after_refresh(driver, base_url, admin_email, admin_password):
+    """Verify session remains active after refreshing the page."""
+
     login(driver, base_url, admin_email, admin_password)
     WebDriverWait(driver, 5).until(
         EC.presence_of_element_located(NAV_HELLO),
@@ -175,6 +182,8 @@ def test_session_persists_after_refresh(driver, base_url, admin_email, admin_pas
 @pytest.mark.tcid("TC-AUTH-028")
 @pytest.mark.auth
 def test_no_session_data_in_storage(driver, base_url, admin_email, admin_password):
+    """Verify no sensitive session/auth data is stored in localStorage/sessionStorage."""
+
     login(driver, base_url, admin_email, admin_password)
     WebDriverWait(driver, 5).until(
         EC.presence_of_element_located(NAV_HELLO),
@@ -182,3 +191,10 @@ def test_no_session_data_in_storage(driver, base_url, admin_email, admin_passwor
     )
     
     assert_no_sensitive_data_in_storage(driver)
+
+def _dismiss_alert_if_present(driver, timeout=3):
+    try:
+        WebDriverWait(driver, timeout).until(EC.alert_is_present())
+        driver.switch_to.alert.accept()
+    except Exception:
+        pass

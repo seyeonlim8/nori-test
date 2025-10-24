@@ -9,6 +9,8 @@ LOGIN_BTN = (By.CSS_SELECTOR, "[data-testid='login-btn']")
 @pytest.mark.tcid("TC-AUTH-029")
 @pytest.mark.auth
 def test_logout_success(driver, base_url, admin_email, admin_password):
+    """Verify logout succeeds and login button reappears; storage has no sensitive data."""
+
     login(driver, base_url, admin_email, admin_password)
 
     logout(driver)
@@ -22,6 +24,8 @@ def test_logout_success(driver, base_url, admin_email, admin_password):
 @pytest.mark.tcid("TC-AUTH-030")
 @pytest.mark.auth
 def test_redirection_to_login_page_after_logout(driver, base_url, admin_email, admin_password):
+    """Verify the app redirects to the login page after logging out."""
+
     login(driver, base_url, admin_email, admin_password)
     
     logout(driver)

@@ -8,6 +8,8 @@ from tests.utils.auth_flows import login
 @pytest.mark.tcid("TC-LEVEL-001")
 @pytest.mark.auth
 def test_all_jlpt_levels_visible(driver, base_url, admin_email, admin_password):
+    """Verify all JLPT level buttons (N5–N1) are visible across study pages."""
+
     login(driver, base_url, admin_email, admin_password)
     
     pages = ["flashcards", "quiz", "fill-in-the-blank"]
@@ -38,6 +40,8 @@ def wait_for_transform_change(driver, element, old_val, timeout=1.0, poll_interv
 @pytest.mark.tcid("TC-LEVEL-002")
 @pytest.mark.auth
 def test_level_card_hover_animation_triggers(driver, base_url, admin_email, admin_password):
+    """Verify level card hover triggers a CSS transform animation on the button."""
+
     login(driver, base_url, admin_email, admin_password)
     driver.get(f"{base_url}/study/flashcards")
     

@@ -15,6 +15,8 @@ X_BTN = (By.CSS_SELECTOR, "[data-testid='x-btn']")
 @pytest.mark.tcid("TC-FC-001")
 @pytest.mark.auth
 def test_flashcard_vocabulary_visible(driver, base_url, admin_email, admin_password):
+    """Verify that the vocabulary element is visible and furigana is hidden on initial flashcard load."""
+    
     open_flashcards_page(driver, base_url, admin_email, admin_password, "n2")
 
     # Assert vocabulary is visible
@@ -34,6 +36,8 @@ def test_flashcard_vocabulary_visible(driver, base_url, admin_email, admin_passw
 @pytest.mark.tcid("TC-FC-002")
 @pytest.mark.auth
 def test_japanese_characters_render(driver, base_url, admin_email, admin_password):
+    """Verify that the vocabulary text is non-empty, contains no broken glyphs, and uses the correct font."""
+    
     open_flashcards_page(driver, base_url, admin_email, admin_password, "n2")
 
     vocab = WebDriverWait(driver, 5).until(
@@ -51,6 +55,8 @@ def test_japanese_characters_render(driver, base_url, admin_email, admin_passwor
 @pytest.mark.tcid("TC-FC-003")
 @pytest.mark.auth
 def test_o_button_marks_word_as_completed(driver, base_url, admin_email, admin_password):
+    """Verify that clicking the O button marks the current word as completed in the database."""
+    
     level = "n2"
     open_flashcards_page(driver, base_url, admin_email, admin_password, level)
     
@@ -77,6 +83,8 @@ def test_o_button_marks_word_as_completed(driver, base_url, admin_email, admin_p
 @pytest.mark.tcid("TC-FC-004")
 @pytest.mark.auth
 def test_x_button_does_not_mark_word_completed(driver, base_url, admin_email, admin_password):
+    """Verify that clicking the X button does not mark the word as completed in the database."""
+    
     level = "n2"
     open_flashcards_page(driver, base_url, admin_email, admin_password, level)
         
@@ -99,6 +107,42 @@ def test_x_button_does_not_mark_word_completed(driver, base_url, admin_email, ad
     # Assert DB state  
     progress = wait_for_completion_state(base_url, word_id, cookies, expected=False, level=level)
     assert progress.get("completed") is False, f"Expected completed=False, got {progress}"
+
+@pytest.mark.tcid("TC-FC-005")
+@pytest.mark.auth
+def test_advance_to_next_flashcard(driver, base_url, admin_email, admin_password):
+    """Verify that clicking either O or X advances to the next flashcard."""
+
+    level = "n2"
+    open_flashcards_page(driver, base_url, admin_email, admin_password, level)
+        
+    vocab_1 = WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located(VOCAB)
+    )
+    word_id_1 = vocab_1.get_attribute("data-word-id")
+    o_btn = WebDriverWait(driver, 5).until(
+        EC.element_to_be_clickable(O_BTN),
+        "O button is not clickable"
+    )
+    o_btn.click()
+    wait_for_flashcard_advance(driver, word_id_1)
+    vocab_2 = WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located(VOCAB)
+    )
+    word_id_2 = vocab_2.get_attribute("data-word-id")
+    assert word_id_1 != word_id_2, f"Flashcard did not advance after O click (still {word_id_1})"
+    
+    x_btn = WebDriverWait(driver, 5).until(
+        EC.element_to_be_clickable(X_BTN),
+        "X button is not clickable"
+    )
+    x_btn.click()
+    wait_for_flashcard_advance(driver, word_id_2)
+    vocab_3 = WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located(VOCAB)
+    )
+    word_id_3 = vocab_3.get_attribute("data-word-id")
+    assert word_id_2 != word_id_3, f"Flashcard did not advance after X click (still {word_id_2})"
     
 def wait_for_completion_state(base_url, word_id, cookies, expected, level, timeout=5):
     deadline = time.time() + timeout
@@ -114,3 +158,12 @@ def wait_for_completion_state(base_url, word_id, cookies, expected, level, timeo
             return progress
         time.sleep(0.5)
     return None
+
+def wait_for_flashcard_advance(driver, old_word_id, timeout=5):
+    def word_id_changed(driver):
+        vocab = driver.find_element(*VOCAB)
+        return vocab.get_attribute("data-word-id") != old_word_id
+    WebDriverWait(driver, timeout).until(
+        word_id_changed,
+        "Flashcard did not advance"
+    )

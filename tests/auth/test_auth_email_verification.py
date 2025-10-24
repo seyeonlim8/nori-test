@@ -11,16 +11,11 @@ from tests.utils.mailhog_client import wait_for_email, extract_plain_html
 SUBJECT = "NORI Email Verification"
 RESEND_BTN = (By.CSS_SELECTOR, "[data-testid='resend-verification-btn']")
 
-def _dismiss_alert_if_present(driver, timeout=3):
-    try:
-        WebDriverWait(driver, timeout).until(EC.alert_is_present())
-        driver.switch_to.alert.accept()
-    except Exception:
-        pass
-
 @pytest.mark.tcid("TC-AUTH-011")
 @pytest.mark.auth
 def test_email_verification_sent(driver, base_url, test1_email, test1_password):
+    """Verify that a verification email is sent on signup and contains correct headers/body."""
+
     # Sign up
     uname = make_unique_username()
     fill_and_submit_signup(driver, base_url, uname, test1_email, test1_password)
@@ -44,6 +39,8 @@ def test_email_verification_sent(driver, base_url, test1_email, test1_password):
 @pytest.mark.tcid("TC-AUTH-013")
 @pytest.mark.auth
 def test_token_uniqueness_with_resend(driver, base_url, test1_email, test1_password):
+    """Verify that resending verification issues a new token/URL different from the original."""
+
     uname = make_unique_username()
     since = datetime.datetime.now(datetime.timezone.utc)
     fill_and_submit_signup(driver, base_url, uname, test1_email, test1_password)
@@ -68,6 +65,8 @@ def test_token_uniqueness_with_resend(driver, base_url, test1_email, test1_passw
 @pytest.mark.tcid("TC-AUTH-014")
 @pytest.mark.auth
 def test_old_token_is_invalid(driver, base_url, test1_email, test1_password):
+    """Verify that the first (old) token becomes invalid after requesting a resend."""
+
     uname = make_unique_username()
     since = datetime.datetime.now(datetime.timezone.utc)
     fill_and_submit_signup(driver, base_url, uname, test1_email, test1_password)
@@ -107,6 +106,8 @@ def test_old_token_is_invalid(driver, base_url, test1_email, test1_password):
 @pytest.mark.tcid("TC-AUTH-016")
 @pytest.mark.auth
 def test_account_activation_via_email_link(driver, base_url, test1_email, test1_password):
+    """Verify that visiting the email verification link marks the account verified (UI + DB)."""
+
     # Sign up
     uname = make_unique_username()
     fill_and_submit_signup(driver, base_url, uname, test1_email, test1_password)
@@ -130,6 +131,8 @@ def test_account_activation_via_email_link(driver, base_url, test1_email, test1_
 @pytest.mark.tcid("TC-AUTH-017")
 @pytest.mark.auth
 def test_verification_link_is_one_time_use(driver, base_url, test1_email, test1_password):
+    """Verify that the verification link works once and then shows an invalid/expired message."""
+
     # Sign up
     uname = make_unique_username()
     fill_and_submit_signup(driver, base_url, uname, test1_email, test1_password)
@@ -155,6 +158,8 @@ def test_verification_link_is_one_time_use(driver, base_url, test1_email, test1_
 @pytest.mark.tcid("TC-AUTH-018")
 @pytest.mark.auth
 def test_account_activation_status_persists(driver, base_url, admin_email, admin_password):
+    """Verify that verified status persists across logout/login and a fresh browser session."""
+
     # Login (session A)
     login(driver, base_url, admin_email, admin_password)
     assert_logged_in(driver, base_url)
@@ -178,8 +183,17 @@ def test_account_activation_status_persists(driver, base_url, admin_email, admin
 @pytest.mark.tcid("TC-AUTH-019")
 @pytest.mark.auth
 def test_invalid_token_rejected(driver, base_url):
+    """Verify that an invalid/garbage token shows an invalid or expired verification message."""
+
     driver.get(f"{base_url}/verify?token=abc")
     WebDriverWait(driver, 5).until(
         EC.presence_of_element_located((By.XPATH, "//*[contains(., 'Invalid or expired')]")),
         message="Expected an 'invalid' verification message but none appeared."
     )
+
+def _dismiss_alert_if_present(driver, timeout=3):
+    try:
+        WebDriverWait(driver, timeout).until(EC.alert_is_present())
+        driver.switch_to.alert.accept()
+    except Exception:
+        pass

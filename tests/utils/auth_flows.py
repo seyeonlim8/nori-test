@@ -106,3 +106,9 @@ def assert_no_sensitive_data_in_storage(driver):
             assert word not in key_lower and word not in value_lower, (
                 f"Sensitive data found in storage: {key} -> {value}"
             )
+            
+def get_auth_token(driver):
+    for cookie in driver.get_cookies():
+        if cookie['name'] == 'token':
+            return cookie['value']
+    return None

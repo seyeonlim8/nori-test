@@ -4,6 +4,8 @@ import requests
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.common.exceptions import TimeoutException
 from tests.utils.flashcards_flows import open_flashcards_page
 from tests.utils.auth_flows import get_auth_token
 
@@ -143,7 +145,108 @@ def test_advance_to_next_flashcard(driver, base_url, admin_email, admin_password
     )
     word_id_3 = vocab_3.get_attribute("data-word-id")
     assert word_id_2 != word_id_3, f"Flashcard did not advance after X click (still {word_id_2})"
+
+@pytest.mark.tcid("TC-FC-006")
+@pytest.mark.auth
+def test_OX_buttons_disabled_until_next_flashcard(driver, base_url, admin_email, admin_password):
+    """Verify that both 'O' and 'X' buttons become disabled immediately after click,
+    remain disabled until the next flashcard loads, and then re-enable properly.
+    """
+
+    level = "n2"
+    open_flashcards_page(driver, base_url, admin_email, admin_password, level)
+
+    # ===== O button test =====
+    vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+    word_id = vocab.get_attribute("data-word-id")
+
+    o_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(O_BTN))
+    o_btn.click()
+
+    # Disabled promptly
+    WebDriverWait(driver, 2).until(
+        lambda d: d.find_element(*O_BTN).get_attribute("disabled") is not None,
+        "O button did not disable promptly after click"
+    )
+
+    # Stay disabled until advance
+    wait_stays_disabled_until_advance(driver, word_id, O_BTN)
+
+    # Re-enable after next flashcard
+    WebDriverWait(driver, 2).until_not(
+        lambda d: d.find_element(*O_BTN).get_attribute("disabled") is not None,
+        "O button still disabled after next flashcard loaded"
+    )
+
+    # ===== X button test =====
+    vocab_new = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+    word_id_new = vocab_new.get_attribute("data-word-id")
+
+    x_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(X_BTN))
+    x_btn.click()
+
+    WebDriverWait(driver, 2).until(
+        lambda d: d.find_element(*X_BTN).get_attribute("disabled") is not None,
+        "X button did not disable promptly after click"
+    )
+
+    wait_stays_disabled_until_advance(driver, word_id_new, X_BTN)
+
+    WebDriverWait(driver, 2).until_not(
+        lambda d: d.find_element(*X_BTN).get_attribute("disabled") is not None,
+        "X button still disabled after next flashcard loaded"
+    )
+
+@pytest.mark.tcid("TC-FC-007")
+@pytest.mark.auth
+def test_OX_button_hover_animation_triggers(driver, base_url, admin_email, admin_password):
+    """Verify that hovering O and X buttons triggers scale-up transform effect."""
+
+    level = "n2"
+    open_flashcards_page(driver, base_url, admin_email, admin_password, level)
+    o_btn = WebDriverWait(driver, 5).until(EC.presence_of_element_located(O_BTN))
+    x_btn = WebDriverWait(driver, 5).until(EC.presence_of_element_located(X_BTN))
+
+    def get_width(elem):
+        return driver.execute_script("return arguments[0].getBoundingClientRect().width;", elem)
+
+    # --- O button ---
+    w_before = get_width(o_btn)
+    ActionChains(driver).move_to_element(o_btn).perform()
+    WebDriverWait(driver, 2).until(lambda d: get_width(o_btn) > w_before * 1.05)
+    w_after = get_width(o_btn)
+    assert w_after > w_before * 1.05, "O button did not scale up on hover"
+
+    # --- X button ---
+    w_before = get_width(x_btn)
+    ActionChains(driver).move_to_element(x_btn).perform()
+    WebDriverWait(driver, 2).until(lambda d: get_width(x_btn) > w_before * 1.05)
+    w_after = get_width(x_btn)
+    assert w_after > w_before * 1.05, "X button did not scale up on hover"
     
+def wait_for_transform_change(driver, element, old_val, timeout=1.0, poll_interval=0.05):
+    WebDriverWait(driver, timeout, poll_interval).until(
+        lambda d: element.value_of_css_property("transform") != old_val,
+        "Hover transform animation did not trigger"
+    )
+
+def wait_stays_disabled_until_advance(driver, old_word_id, btn_locator, timeout=3):
+    """Wait until flashcard advances, asserting button stays disabled until that point."""
+    start = time.time()
+    while time.time() - start < timeout:
+        current_id = driver.find_element(*VOCAB).get_attribute("data-word-id")
+        is_disabled = driver.find_element(*btn_locator).get_attribute("disabled") is not None
+        if current_id != old_word_id:
+            return  # advanced successfully
+        # tolerate short flickers (<100ms)
+        if not is_disabled:
+            time.sleep(0.1)
+            # re-check after brief delay in case it's transient
+            if driver.find_element(*btn_locator).get_attribute("disabled") is None:
+                raise AssertionError("Button re-enabled before next flashcard appeared")
+        time.sleep(0.05)
+    raise TimeoutException("Flashcard did not advance")
+
 def wait_for_completion_state(base_url, word_id, cookies, expected, level, timeout=5):
     deadline = time.time() + timeout
     while time.time() < deadline:

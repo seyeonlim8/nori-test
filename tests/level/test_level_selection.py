@@ -30,12 +30,6 @@ def test_all_jlpt_levels_visible(driver, base_url, admin_email, admin_password):
             
         for level in expected_levels:
             assert level in found_levels, f"Level {level.upper} missing on {page.capitalize()} page"
-
-def wait_for_transform_change(driver, element, old_val, timeout=1.0, poll_interval=0.05):
-    WebDriverWait(driver, timeout, poll_interval).until(
-        lambda d: element.value_of_css_property("transform") != old_val,
-        "Hover transform animation did not trigger"
-    )
     
 @pytest.mark.tcid("TC-LEVEL-002")
 @pytest.mark.auth
@@ -55,3 +49,9 @@ def test_level_card_hover_animation_triggers(driver, base_url, admin_email, admi
     wait_for_transform_change(driver, level_btn, before, timeout=1.5)
     after = level_btn.value_of_css_property("transform")
     assert before != after, f"Hover animation did not trigger; transform unchanged"
+    
+def wait_for_transform_change(driver, element, old_val, timeout=1.0, poll_interval=0.05):
+    WebDriverWait(driver, timeout, poll_interval).until(
+        lambda d: element.value_of_css_property("transform") != old_val,
+        "Hover transform animation did not trigger"
+    )

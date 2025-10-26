@@ -7,7 +7,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import TimeoutException
 from tests.utils.flashcards_flows import open_flashcards_page
-from tests.utils.auth_flows import get_auth_token
+from tests.utils.auth_flows import get_auth_token, logout
 
 VOCAB = (By.CSS_SELECTOR, "[data-testid='vocabulary']")
 FURIGANA = (By.CSS_SELECTOR, "[data-testid='furigana']")
@@ -118,9 +118,7 @@ def test_advance_to_next_flashcard(driver, base_url, admin_email, admin_password
     level = "n2"
     open_flashcards_page(driver, base_url, admin_email, admin_password, level)
         
-    vocab_1 = WebDriverWait(driver, 5).until(
-        EC.presence_of_element_located(VOCAB)
-    )
+    vocab_1 = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
     word_id_1 = vocab_1.get_attribute("data-word-id")
     o_btn = WebDriverWait(driver, 5).until(
         EC.element_to_be_clickable(O_BTN),
@@ -128,9 +126,7 @@ def test_advance_to_next_flashcard(driver, base_url, admin_email, admin_password
     )
     o_btn.click()
     wait_for_flashcard_advance(driver, word_id_1)
-    vocab_2 = WebDriverWait(driver, 5).until(
-        EC.presence_of_element_located(VOCAB)
-    )
+    vocab_2 = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
     word_id_2 = vocab_2.get_attribute("data-word-id")
     assert word_id_1 != word_id_2, f"Flashcard did not advance after O click (still {word_id_1})"
     
@@ -140,9 +136,7 @@ def test_advance_to_next_flashcard(driver, base_url, admin_email, admin_password
     )
     x_btn.click()
     wait_for_flashcard_advance(driver, word_id_2)
-    vocab_3 = WebDriverWait(driver, 5).until(
-        EC.presence_of_element_located(VOCAB)
-    )
+    vocab_3 = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
     word_id_3 = vocab_3.get_attribute("data-word-id")
     assert word_id_2 != word_id_3, f"Flashcard did not advance after X click (still {word_id_2})"
 
@@ -223,7 +217,69 @@ def test_OX_button_hover_animation_triggers(driver, base_url, admin_email, admin
     WebDriverWait(driver, 2).until(lambda d: get_width(x_btn) > w_before * 1.05)
     w_after = get_width(x_btn)
     assert w_after > w_before * 1.05, "X button did not scale up on hover"
+
+@pytest.mark.tcid("TC-FC-031")
+@pytest.mark.auth
+def test_flashcard_position_persists_after_page_refresh(driver, base_url, admin_email, admin_password):
+    level = "n2"
+    open_flashcards_page(driver, base_url, admin_email, admin_password, level)
     
+    vocab_before = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+    word_id_before = vocab_before.get_attribute("data-word-id")
+    
+    driver.refresh()
+    
+    vocab_after = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+    word_id_after = vocab_after.get_attribute("data-word-id")
+    assert word_id_before == word_id_after, (
+        f"Flashcard did not persist after refresh: before={word_id_before}, after={word_id_after}"
+    )
+    
+@pytest.mark.tcid("TC-FC-032")
+@pytest.mark.auth
+def test_flashcard_position_persists_after_logout_login(driver, base_url, admin_email, admin_password):
+    level = "n2"
+    open_flashcards_page(driver, base_url, admin_email, admin_password, level)
+    
+    vocab_before = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+    word_id_before = vocab_before.get_attribute("data-word-id")
+    
+    logout(driver)
+    open_flashcards_page(driver, base_url, admin_email, admin_password, level)
+    
+    vocab_after = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+    word_id_after = vocab_after.get_attribute("data-word-id")
+    assert word_id_before == word_id_after, (
+        f"Flashcard did not persist after re-login: before={word_id_before}, after={word_id_after}"
+    )
+    
+@pytest.mark.tcid("TC-FC-033")
+@pytest.mark.auth
+def test_flashcard_position_persists_after_closing_and_reopening_browser(driver_factory, base_url, admin_email, admin_password):
+    level = "n2"
+    
+    # First browser session
+    driver1 = driver_factory()
+    open_flashcards_page(driver1, base_url, admin_email, admin_password, level)
+    vocab_before = WebDriverWait(driver1, 5).until(EC.presence_of_element_located(VOCAB))
+    word_id_before = vocab_before.get_attribute("data-word-id")
+    driver1.quit()
+    
+    # Second browser session
+    driver2 = driver_factory()
+    open_flashcards_page(driver2, base_url, admin_email, admin_password, level)
+    vocab_after = WebDriverWait(driver2, 5).until(EC.presence_of_element_located(VOCAB))
+    word_id_after = vocab_after.get_attribute("data-word-id")
+    
+    assert word_id_before == word_id_after, (
+        f"Flashcard did not persist after closing and reopening browser: "
+        f"before={word_id_before}, after={word_id_after}"
+    )
+    driver2.quit()
+    
+# @pytest.mark.tcid("TC-FC-034")
+# @pytest.mark.auth
+
 def wait_for_transform_change(driver, element, old_val, timeout=1.0, poll_interval=0.05):
     WebDriverWait(driver, timeout, poll_interval).until(
         lambda d: element.value_of_css_property("transform") != old_val,

@@ -1,13 +1,13 @@
 import time
 import pytest
-import requests
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import TimeoutException
 from tests.utils.flashcards_flows import open_flashcards_page
-from tests.utils.auth_flows import get_auth_token, logout
+from tests.utils.auth_flows import get_auth_cookies, logout
+from tests.utils.db_client import get_study_progress
 
 VOCAB = (By.CSS_SELECTOR, "[data-testid='vocabulary']")
 FURIGANA = (By.CSS_SELECTOR, "[data-testid='furigana']")
@@ -73,11 +73,8 @@ def test_o_button_marks_word_as_completed(driver, base_url, admin_email, admin_p
     )
     o_btn.click()
     
-    # Extract auth token (from cookies)
-    token = get_auth_token(driver)
-    assert token, "No auth token found after login"
-    cookies = {'token': token}
-
+    cookies = get_auth_cookies(driver)
+    
     # Assert DB state  
     progress = wait_for_completion_state(base_url, word_id, cookies, expected=False, level=level)
     assert progress, f"Word {word_id} not marked as completed within 5s"
@@ -101,10 +98,7 @@ def test_x_button_does_not_mark_word_completed(driver, base_url, admin_email, ad
     )
     x_btn.click()
     
-    # Extract auth token (from cookies)
-    token = get_auth_token(driver)
-    assert token, "No auth token found after login"
-    cookies = {"token": token}
+    cookies = get_auth_cookies(driver)
 
     # Assert DB state  
     progress = wait_for_completion_state(base_url, word_id, cookies, expected=False, level=level)
@@ -221,6 +215,8 @@ def test_OX_button_hover_animation_triggers(driver, base_url, admin_email, admin
 @pytest.mark.tcid("TC-FC-031")
 @pytest.mark.auth
 def test_flashcard_position_persists_after_page_refresh(driver, base_url, admin_email, admin_password):
+    """Verify the same flashcard remains selected after a browser refresh."""
+    
     level = "n2"
     open_flashcards_page(driver, base_url, admin_email, admin_password, level)
     
@@ -238,6 +234,8 @@ def test_flashcard_position_persists_after_page_refresh(driver, base_url, admin_
 @pytest.mark.tcid("TC-FC-032")
 @pytest.mark.auth
 def test_flashcard_position_persists_after_logout_login(driver, base_url, admin_email, admin_password):
+    """Verify the same flashcard remains selected after logout then login."""
+    
     level = "n2"
     open_flashcards_page(driver, base_url, admin_email, admin_password, level)
     
@@ -256,6 +254,8 @@ def test_flashcard_position_persists_after_logout_login(driver, base_url, admin_
 @pytest.mark.tcid("TC-FC-033")
 @pytest.mark.auth
 def test_flashcard_position_persists_after_closing_and_reopening_browser(driver_factory, base_url, admin_email, admin_password):
+    """Verify the same flashcard remains selected after closing and reopening the browser."""
+    
     level = "n2"
     
     # First browser session
@@ -277,10 +277,47 @@ def test_flashcard_position_persists_after_closing_and_reopening_browser(driver_
     )
     driver2.quit()
     
-# @pytest.mark.tcid("TC-FC-034")
-# @pytest.mark.auth
+@pytest.mark.tcid("TC-FC-034")
+@pytest.mark.auth
+def test_flashcard_progress_persists_on_reenter(driver, base_url, admin_email, admin_password):
+    """Verify completed words remain persisted after leaving and re-entering flashcards."""
+    
+    level = "n2"
+    open_flashcards_page(driver, base_url, admin_email, admin_password, level)
+    assert "Review Mode" not in driver.page_source, "Should be in Normal Mode, not Review Mode"
+    
+    # Study a few cards
+    for _ in range(3):
+        o_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(O_BTN))
+        vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+        current_word_id = vocab.get_attribute("data-word-id")
+        o_btn.click()
+        
+        WebDriverWait(driver, 5).until(
+            lambda d: d.find_element(*VOCAB).get_attribute("data-word-id") != current_word_id
+        )
+        
+    cookies = get_auth_cookies(driver)
+    progress_before = get_study_progress(base_url, cookies, "flashcards", level)
+    completed_before = {p["wordId"] for p in progress_before if p["completed"]}
+    
+    # Exit and reenter flashcards page
+    driver.get(f"{base_url}")
+    driver.get(f"{base_url}/study/flashcards/n2")
+    assert "Review Mode" not in driver.page_source
+    
+    progress_after = get_study_progress(base_url, cookies, "flashcards", level)
+    completed_after = {p["wordId"] for p in progress_after if p["completed"]}
+    
+    # Assert persistence
+    assert completed_after == completed_before, (
+        "Progress did not persist after re-entering flashcards: "
+        f"before exit={len(completed_before)}, after re-enter={len(completed_after)}"
+    )
 
 def wait_for_transform_change(driver, element, old_val, timeout=1.0, poll_interval=0.05):
+    """Wait for element's CSS transform property to change from its initial value."""
+    
     WebDriverWait(driver, timeout, poll_interval).until(
         lambda d: element.value_of_css_property("transform") != old_val,
         "Hover transform animation did not trigger"
@@ -288,6 +325,7 @@ def wait_for_transform_change(driver, element, old_val, timeout=1.0, poll_interv
 
 def wait_stays_disabled_until_advance(driver, old_word_id, btn_locator, timeout=3):
     """Wait until flashcard advances, asserting button stays disabled until that point."""
+    
     start = time.time()
     while time.time() - start < timeout:
         current_id = driver.find_element(*VOCAB).get_attribute("data-word-id")
@@ -304,21 +342,19 @@ def wait_stays_disabled_until_advance(driver, old_word_id, btn_locator, timeout=
     raise TimeoutException("Flashcard did not advance")
 
 def wait_for_completion_state(base_url, word_id, cookies, expected, level, timeout=5):
+    """Poll the study progress API until the word's completion state matches the expected value."""
+    
     deadline = time.time() + timeout
     while time.time() < deadline:
-        r = requests.get(
-            f"{base_url}/api/study-progress?type=flashcard&level={level}&wordId={word_id}",
-            cookies=cookies,
-            timeout=5
-        )
-        r.raise_for_status()
-        progress = r.json()
+        progress = get_study_progress(base_url, cookies, "flashcards", level, word_id)
         if progress.get("completed") == expected:
             return progress
         time.sleep(0.5)
     return None
 
 def wait_for_flashcard_advance(driver, old_word_id, timeout=5):
+    """Wait for the flashcard to advance by checking that the word ID has changed."""
+    
     def word_id_changed(driver):
         vocab = driver.find_element(*VOCAB)
         return vocab.get_attribute("data-word-id") != old_word_id

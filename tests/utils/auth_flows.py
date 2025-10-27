@@ -112,3 +112,9 @@ def get_auth_token(driver):
         if cookie['name'] == 'token':
             return cookie['value']
     return None
+
+def get_auth_cookies(driver):
+    """Extract auth token from driver and return as cookies dict."""
+    token = get_auth_token(driver)
+    assert token, "No auth token found after login"
+    return {'token': token}

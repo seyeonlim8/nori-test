@@ -5,7 +5,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import TimeoutException
-from tests.utils.flashcards_flows import open_flashcards_page
+from tests.utils.flashcards_flows import open_flashcards_page, open_flashcards_page_with_level_reset
 from tests.utils.auth_flows import get_auth_cookies, logout
 from tests.utils.db_client import get_study_progress
 
@@ -212,6 +212,48 @@ def test_OX_button_hover_animation_triggers(driver, base_url, admin_email, admin
     w_after = get_width(x_btn)
     assert w_after > w_before * 1.05, "X button did not scale up on hover"
 
+@pytest.mark.tcid("TC-FC-022")
+@pytest.mark.auth
+def test_review_mode_excludes_completed_flashcards(driver, base_url, admin_email, admin_password):
+    """Ensure review mode only surfaces words that still need review."""
+    
+    level = "TEST"
+    # Clear any previous progress for TEST set
+    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    
+    # Complete a cycle to enter Review mode - test set length is 5.
+    enter_review_mode(driver, 2, 3) 
+    assert "Review Mode" in driver.page_source
+    
+    cookies = get_auth_cookies(driver)
+    progress = get_study_progress(base_url, cookies, "flashcard", level)
+    completed = {p["wordId"] for p in progress if p["completed"]}
+    print("Completed set:", completed)
+    assert completed, "No completed words found — test precondition failed."
+    
+    displayed_set = set()
+    while True:
+        try:
+            vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+            word_id = int(vocab.get_attribute("data-word-id"))
+            displayed_set.add(word_id)
+            print(word_id)
+            driver.find_element(*O_BTN).click()
+
+            # If alert shows up, review set is done
+            try:
+                WebDriverWait(driver, 3).until(EC.alert_is_present())
+                break
+            except TimeoutException:
+                # no alert -> wait for next card to load
+                WebDriverWait(driver, 5).until(
+                    lambda d: d.find_element(*VOCAB).get_attribute("data-word-id") != str(word_id)
+                )
+        except TimeoutException:
+            break
+            
+    assert not (displayed_set & completed), "Memorized words appeared in Review Mode"
+
 @pytest.mark.tcid("TC-FC-031")
 @pytest.mark.auth
 def test_flashcard_position_persists_after_page_refresh(driver, base_url, admin_email, admin_password):
@@ -279,12 +321,12 @@ def test_flashcard_position_persists_after_closing_and_reopening_browser(driver_
     
 @pytest.mark.tcid("TC-FC-034")
 @pytest.mark.auth
-def test_flashcard_progress_persists_on_reenter(driver, base_url, admin_email, admin_password):
-    """Verify completed words remain persisted after leaving and re-entering flashcards."""
+def test_flashcard_progress_persists_on_reenter_normal_mode(driver, base_url, admin_email, admin_password):
+    """Verify completed words remain persisted after leaving and re-entering flashcards in Normal mode."""
     
     level = "n2"
     open_flashcards_page(driver, base_url, admin_email, admin_password, level)
-    assert "Review Mode" not in driver.page_source, "Should be in Normal Mode, not Review Mode"
+    assert "Review Mode" not in driver.page_source, "Should be in Normal mode, not Review mode"
     
     # Study a few cards
     for _ in range(3):
@@ -300,19 +342,74 @@ def test_flashcard_progress_persists_on_reenter(driver, base_url, admin_email, a
     cookies = get_auth_cookies(driver)
     progress_before = get_study_progress(base_url, cookies, "flashcards", level)
     completed_before = {p["wordId"] for p in progress_before if p["completed"]}
+    word_id_before_exit = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB)).get_attribute("data-word-id")
     
     # Exit and reenter flashcards page
     driver.get(f"{base_url}")
-    driver.get(f"{base_url}/study/flashcards/n2")
+    driver.get(f"{base_url}/study/flashcards/{level}")
     assert "Review Mode" not in driver.page_source
     
     progress_after = get_study_progress(base_url, cookies, "flashcards", level)
     completed_after = {p["wordId"] for p in progress_after if p["completed"]}
+    word_id_after_reentry = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB)).get_attribute("data-word-id")
     
     # Assert persistence
     assert completed_after == completed_before, (
         "Progress did not persist after re-entering flashcards: "
         f"before exit={len(completed_before)}, after re-enter={len(completed_after)}"
+    )
+    assert word_id_before_exit == word_id_after_reentry, (
+        "Normal mode did not resume on the same card: "
+        f"before exit={word_id_before_exit}, after re-enter={word_id_after_reentry}"
+    )    
+    
+@pytest.mark.tcid("TC-FC-035")
+@pytest.mark.auth
+def test_flashcard_progress_persists_on_reenter_review_mode(driver, base_url, admin_email, admin_password):
+    """Verify completed words remain persisted after leaving and re-entering flashcards in Review mode."""
+    
+    level = "TEST"
+    # Clear any previous progress for TEST set
+    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    
+    # Complete a cycle to enter Review mode - test set length is 5.
+    enter_review_mode(driver, 1, 4) 
+
+    WebDriverWait(driver, 5).until(lambda d: "Review Mode" in d.page_source)
+    assert "Review Mode" in driver.page_source, "Should be in Review mode, not Normal mode"
+    
+    # Study a few cards
+    for _ in range(2):
+        o_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(O_BTN))
+        vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+        current_word_id = vocab.get_attribute("data-word-id")
+        o_btn.click()
+        wait_for_flashcard_advance(driver, current_word_id)
+        
+    cookies = get_auth_cookies(driver)
+    progress_before = get_study_progress(base_url, cookies, "flashcards", level)
+    completed_before = {p["wordId"] for p in progress_before if p["completed"]}
+    word_id_before_exit = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB)).get_attribute("data-word-id")
+    
+    # Exit and reenter flashcards page
+    driver.get(f"{base_url}")
+    driver.get(f"{base_url}/study/flashcards/{level}")
+    # Wait for the page to load and client-side state to rehydrate before asserting
+    WebDriverWait(driver, 5).until(lambda d: "Review Mode" in d.page_source)
+    assert "Review Mode" in driver.page_source
+    
+    progress_after = get_study_progress(base_url, cookies, "flashcards", level)
+    completed_after = {p["wordId"] for p in progress_after if p["completed"]}
+    word_id_after_reentry = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB)).get_attribute("data-word-id")
+    
+    # Assert persistence
+    assert completed_after == completed_before, (
+        "Progress did not persist after re-entering flashcards: "
+        f"before exit={len(completed_before)}, after re-enter={len(completed_after)}"
+    )
+    assert word_id_before_exit == word_id_after_reentry, (
+        "Review mode did not resume on the same card: "
+        f"before exit={word_id_before_exit}, after re-enter={word_id_after_reentry}"
     )
 
 def wait_for_transform_change(driver, element, old_val, timeout=1.0, poll_interval=0.05):
@@ -362,3 +459,26 @@ def wait_for_flashcard_advance(driver, old_word_id, timeout=5):
         word_id_changed,
         "Flashcard did not advance"
     )
+
+def enter_review_mode(driver, num_of_completed, num_of_incomplete):
+    """Complete the requested mix of cards so the session enters review mode."""
+    
+    for _ in range(num_of_completed):
+        o_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(O_BTN))
+        vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+        current_word_id = vocab.get_attribute("data-word-id")
+        o_btn.click()
+        wait_for_flashcard_advance(driver, current_word_id)
+    for idx in range(num_of_incomplete):
+        x_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(X_BTN))
+        vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+        current_word_id = vocab.get_attribute("data-word-id")
+        x_btn.click()
+        if idx < 1:
+            wait_for_flashcard_advance(driver, current_word_id)
+        else: 
+            try:
+                WebDriverWait(driver, 5).until(EC.alert_is_present())
+                driver.switch_to.alert.accept()
+            except TimeoutException:
+                pass 

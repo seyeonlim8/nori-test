@@ -124,12 +124,23 @@ def assert_no_sensitive_data_in_storage(driver):
                 f"Sensitive data found in storage: {key} -> {value}"
             )
             
-def get_auth_token(driver):
-    """Return the auth token cookie value if present on the driver."""
-    
-    for cookie in driver.get_cookies():
-        if cookie['name'] == 'token':
-            return cookie['value']
+def get_auth_token(driver, timeout: float = 5.0):
+    """Return the auth token cookie value, waiting briefly for it to appear.
+
+    Rationale: After clicking Log In, the server sets the auth cookie during
+    redirect. Without a short wait/poll, immediate retrieval can race and
+    return no cookie. We poll for up to `timeout` seconds.
+    """
+    import time
+
+    end = time.time() + max(0.0, float(timeout))
+    while True:
+        for cookie in driver.get_cookies():
+            if cookie.get('name') == 'token' and cookie.get('value'):
+                return cookie['value']
+        if time.time() >= end:
+            break
+        time.sleep(0.1)
     return None
 
 def get_auth_cookies(driver):

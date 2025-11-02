@@ -1,18 +1,22 @@
 import time
 import pytest
+import requests
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import TimeoutException
+from tests.auth.test_auth_email_verification import _dismiss_alert_if_present
+from tests.utils.email_verification import fetch_verify_url_from_mailhog
 from tests.utils.flashcards_flows import open_flashcards_page, open_flashcards_page_with_level_reset
-from tests.utils.auth_flows import get_auth_cookies, logout
+from tests.utils.auth_flows import fill_and_submit_signup, get_auth_cookies, logout, make_unique_username
 from tests.utils.db_client import get_study_progress
 
 VOCAB = (By.CSS_SELECTOR, "[data-testid='vocabulary']")
 FURIGANA = (By.CSS_SELECTOR, "[data-testid='furigana']")
 O_BTN = (By.CSS_SELECTOR, "[data-testid='o-btn']")
 X_BTN = (By.CSS_SELECTOR, "[data-testid='x-btn']")
+SUBJECT = "NORI Email Verification"
 
 @pytest.mark.tcid("TC-FC-001")
 @pytest.mark.auth
@@ -226,7 +230,7 @@ def test_review_mode_excludes_completed_flashcards(driver, base_url, admin_email
     assert "Review Mode" in driver.page_source
     
     cookies = get_auth_cookies(driver)
-    progress = get_study_progress(base_url, cookies, "flashcard", level)
+    progress = get_study_progress(base_url, cookies, "flashcards", level)
     completed = {p["wordId"] for p in progress if p["completed"]}
     print("Completed set:", completed)
     assert completed, "No completed words found — test precondition failed."
@@ -295,7 +299,7 @@ def test_flashcard_position_persists_after_logout_login(driver, base_url, admin_
     
 @pytest.mark.tcid("TC-FC-033")
 @pytest.mark.auth
-def test_flashcard_position_persists_after_closing_and_reopening_browser(driver_factory, base_url, admin_email, admin_password):
+def test_flashcard_position_persists_after_reopening_browser_or_across_devices(driver_factory, base_url, admin_email, admin_password):
     """Verify the same flashcard remains selected after closing and reopening the browser."""
     
     level = "n2"
@@ -411,6 +415,63 @@ def test_flashcard_progress_persists_on_reenter_review_mode(driver, base_url, ad
         "Review mode did not resume on the same card: "
         f"before exit={word_id_before_exit}, after re-enter={word_id_after_reentry}"
     )
+
+@pytest.mark.tcid("TC-FC-036")
+@pytest.mark.auth
+def test_data_deletion_after_account_deletion(driver, base_url, test1_email, test1_password):
+    """Verify that flashcard progress is wiped and APIs deny access after deleting the account."""
+    
+    # Sign up and verify account
+    uname = make_unique_username()
+    fill_and_submit_signup(driver, base_url, uname, test1_email, test1_password)
+    _dismiss_alert_if_present(driver)
+    verify_url = fetch_verify_url_from_mailhog(test1_email, SUBJECT, timeout_s=10)
+    driver.get(verify_url)
+    WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, "//*[contains(., 'successfully verified')]")))
+    
+    # Study a few cards
+    level = "n2"
+    open_flashcards_page(driver, base_url, test1_email, test1_password, level)
+    for _ in range(5):
+        o_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(O_BTN))
+        vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+        current_word_id = vocab.get_attribute("data-word-id")
+        o_btn.click()
+        wait_for_flashcard_advance(driver, current_word_id)
+        
+    # Confirm progress is saved
+    cookies = get_auth_cookies(driver)
+    progress_before = get_study_progress(base_url, cookies, "flashcards", level)
+    assert progress_before, "Progress is not saved in DB"
+    
+    # Delete account
+    r = requests.delete(
+        f"{base_url}/api/user",
+        cookies=cookies,
+        timeout=5,
+    )
+    r.raise_for_status()
+    
+    # Wait until study-progress API returns 401
+    elapsed = 0
+    while elapsed < 5:
+        resp = requests.get(
+            f"{base_url}/api/study-progress",
+            params={"type": "flashcards", "level": level},
+            cookies=cookies,
+            timeout=5,
+        )
+        if resp.status_code == 401:
+            break
+        elif resp.status_code >= 400:
+            resp.raise_for_status()
+        time.sleep(0.5)
+        elapsed += 0.5
+    else:
+        pytest.fail(f"Progress API still accessible after account deletion (last status={resp.status_code})")
+
+    assert resp.status_code == 401, f"Expected 401 after account deletion, got {resp.status_code}"
+    
 
 def wait_for_transform_change(driver, element, old_val, timeout=1.0, poll_interval=0.05):
     """Wait for element's CSS transform property to change from its initial value."""

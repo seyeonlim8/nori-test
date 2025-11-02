@@ -100,8 +100,6 @@ def test_old_token_is_invalid(driver, base_url, test1_email, test1_password):
         EC.presence_of_element_located((By.XPATH, "//*[contains(., 'successfully verified')]")),
         message="Expected a verification success message but none appeared."
     )    
-    
-    
 
 @pytest.mark.tcid("TC-AUTH-016")
 @pytest.mark.auth

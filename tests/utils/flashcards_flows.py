@@ -34,6 +34,11 @@ def open_flashcards_page(driver, base_url, email, password, level):
 def open_flashcards_page_with_level_reset(driver, base_url, email, password, level):
     login(driver, base_url, email, password)
     
+    WebDriverWait(driver, 5).until(
+        EC.url_to_be(f"{base_url}/"),
+        "Did not navigate to main page"
+    )
+    
     # Reset progress
     cookies = get_auth_cookies(driver)
     reset_url = f"{base_url}/api/study-progress/reset"
@@ -44,11 +49,6 @@ def open_flashcards_page_with_level_reset(driver, base_url, email, password, lev
         timeout=5,
     )
     r.raise_for_status()
-    
-    WebDriverWait(driver, 5).until(
-        EC.url_to_be(f"{base_url}/"),
-        "Did not navigate to main page"
-    )
 
     study_btn = WebDriverWait(driver, 5).until(
         EC.presence_of_element_located(STUDY_BTN),

@@ -36,6 +36,34 @@ def test_correct_answer_marks_quiz_as_completed(driver, base_url, admin_email, a
         f"Word {word_id} not marked as completed within 5s"
     )
     
+@pytest.mark.tcid("TC-QZ-005")
+@pytest.mark.quiz
+def test_incorrect_answer_marks_quiz_as_incomplete(driver, base_url, admin_email, admin_password):
+    
+    level = "TEST"
+    type = "furigana-to-kanji"
+    open_quiz_page_with_level_reset(driver, base_url, admin_email, admin_password, level, type)
+    
+    question = WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='question-box']"))
+    )
+    last_char = question.text.strip()[-1]
+
+    buttons = driver.find_elements(By.CSS_SELECTOR, "[data-testid^='answer-']")
+    incorrect_btn = next(
+        btn for btn in buttons
+        if not btn.text.strip().endswith(last_char)
+    )
+    incorrect_btn.click()
+    
+    # Assert DB state
+    word_id = question.get_attribute("data-word-id")
+    cookies = get_auth_cookies(driver)  
+    progress = wait_for_completion_state(base_url, word_id, cookies, expected=False, level=level, type=type)
+    assert progress and progress.get("completed") is False, (
+        f"Word {word_id} is marked as complete"
+    )
+    
 def wait_for_completion_state(base_url, word_id, cookies, expected, level, type, timeout=5):
     """Poll the study progress API until the word's completion state matches the expected value."""
     
@@ -46,3 +74,5 @@ def wait_for_completion_state(base_url, word_id, cookies, expected, level, type,
             return progress
         time.sleep(0.5)
     return None
+
+

@@ -19,7 +19,7 @@ X_BTN = (By.CSS_SELECTOR, "[data-testid='x-btn']")
 SUBJECT = "NORI Email Verification"
 
 @pytest.mark.tcid("TC-FC-001")
-@pytest.mark.auth
+@pytest.mark.flashcards
 def test_flashcard_vocabulary_visible(driver, base_url, admin_email, admin_password):
     """Verify that the vocabulary element is visible and furigana is hidden on initial flashcard load."""
     
@@ -40,7 +40,7 @@ def test_flashcard_vocabulary_visible(driver, base_url, admin_email, admin_passw
     )
     
 @pytest.mark.tcid("TC-FC-002")
-@pytest.mark.auth
+@pytest.mark.flashcards
 def test_japanese_characters_render(driver, base_url, admin_email, admin_password):
     """Verify that the vocabulary text is non-empty, contains no broken glyphs, and uses the correct font."""
     
@@ -59,7 +59,7 @@ def test_japanese_characters_render(driver, base_url, admin_email, admin_passwor
     assert any(f in font for f in ["Noto Sans JP", "sans-serif"]), f"Unexpected font: {font}"
 
 @pytest.mark.tcid("TC-FC-003")
-@pytest.mark.auth
+@pytest.mark.flashcards
 def test_o_button_marks_word_as_completed(driver, base_url, admin_email, admin_password):
     """Verify that clicking the O button marks the current word as completed in the database."""
     
@@ -80,11 +80,13 @@ def test_o_button_marks_word_as_completed(driver, base_url, admin_email, admin_p
     cookies = get_auth_cookies(driver)
     
     # Assert DB state  
-    progress = wait_for_completion_state(base_url, word_id, cookies, expected=False, level=level)
-    assert progress, f"Word {word_id} not marked as completed within 5s"
+    progress = wait_for_completion_state(base_url, word_id, cookies, expected=True, level=level)
+    assert progress and progress.get("completed") is True, (
+        f"Word {word_id} not marked as completed within 5s"
+    )
         
 @pytest.mark.tcid("TC-FC-004")
-@pytest.mark.auth
+@pytest.mark.flashcards
 def test_x_button_does_not_mark_word_completed(driver, base_url, admin_email, admin_password):
     """Verify that clicking the X button does not mark the word as completed in the database."""
     
@@ -106,10 +108,12 @@ def test_x_button_does_not_mark_word_completed(driver, base_url, admin_email, ad
 
     # Assert DB state  
     progress = wait_for_completion_state(base_url, word_id, cookies, expected=False, level=level)
-    assert progress.get("completed") is False, f"Expected completed=False, got {progress}"
+    assert progress is not None and progress.get("completed") is False, (
+        f"Expected completed=False, got {progress}"
+    )
 
 @pytest.mark.tcid("TC-FC-005")
-@pytest.mark.auth
+@pytest.mark.flashcards
 def test_advance_to_next_flashcard(driver, base_url, admin_email, admin_password):
     """Verify that clicking either O or X advances to the next flashcard."""
 
@@ -139,7 +143,7 @@ def test_advance_to_next_flashcard(driver, base_url, admin_email, admin_password
     assert word_id_2 != word_id_3, f"Flashcard did not advance after X click (still {word_id_2})"
 
 @pytest.mark.tcid("TC-FC-006")
-@pytest.mark.auth
+@pytest.mark.flashcards
 def test_OX_buttons_disabled_until_next_flashcard(driver, base_url, admin_email, admin_password):
     """Verify that both 'O' and 'X' buttons become disabled immediately after click,
     remain disabled until the next flashcard loads, and then re-enable properly.
@@ -190,7 +194,7 @@ def test_OX_buttons_disabled_until_next_flashcard(driver, base_url, admin_email,
     )
 
 @pytest.mark.tcid("TC-FC-007")
-@pytest.mark.auth
+@pytest.mark.flashcards
 def test_OX_button_hover_animation_triggers(driver, base_url, admin_email, admin_password):
     """Verify that hovering O and X buttons triggers scale-up transform effect."""
 
@@ -217,7 +221,7 @@ def test_OX_button_hover_animation_triggers(driver, base_url, admin_email, admin
     assert w_after > w_before * 1.05, "X button did not scale up on hover"
 
 @pytest.mark.tcid("TC-FC-022")
-@pytest.mark.auth
+@pytest.mark.flashcards
 def test_review_mode_excludes_completed_flashcards(driver, base_url, admin_email, admin_password):
     """Ensure review mode only surfaces words that still need review."""
     
@@ -259,7 +263,7 @@ def test_review_mode_excludes_completed_flashcards(driver, base_url, admin_email
     assert not (displayed_set & completed), "Memorized words appeared in Review Mode"
 
 @pytest.mark.tcid("TC-FC-031")
-@pytest.mark.auth
+@pytest.mark.flashcards
 def test_flashcard_position_persists_after_page_refresh(driver, base_url, admin_email, admin_password):
     """Verify the same flashcard remains selected after a browser refresh."""
     
@@ -278,7 +282,7 @@ def test_flashcard_position_persists_after_page_refresh(driver, base_url, admin_
     )
     
 @pytest.mark.tcid("TC-FC-032")
-@pytest.mark.auth
+@pytest.mark.flashcards
 def test_flashcard_position_persists_after_logout_login(driver, base_url, admin_email, admin_password):
     """Verify the same flashcard remains selected after logout then login."""
     
@@ -298,7 +302,7 @@ def test_flashcard_position_persists_after_logout_login(driver, base_url, admin_
     )
     
 @pytest.mark.tcid("TC-FC-033")
-@pytest.mark.auth
+@pytest.mark.flashcards
 def test_flashcard_position_persists_after_reopening_browser_or_across_devices(driver_factory, base_url, admin_email, admin_password):
     """Verify the same flashcard remains selected after closing and reopening the browser."""
     
@@ -324,7 +328,7 @@ def test_flashcard_position_persists_after_reopening_browser_or_across_devices(d
     driver2.quit()
     
 @pytest.mark.tcid("TC-FC-034")
-@pytest.mark.auth
+@pytest.mark.flashcards
 def test_flashcard_progress_persists_on_reenter_normal_mode(driver, base_url, admin_email, admin_password):
     """Verify completed words remain persisted after leaving and re-entering flashcards in Normal mode."""
     
@@ -368,7 +372,7 @@ def test_flashcard_progress_persists_on_reenter_normal_mode(driver, base_url, ad
     )    
     
 @pytest.mark.tcid("TC-FC-035")
-@pytest.mark.auth
+@pytest.mark.flashcards
 def test_flashcard_progress_persists_on_reenter_review_mode(driver, base_url, admin_email, admin_password):
     """Verify completed words remain persisted after leaving and re-entering flashcards in Review mode."""
     
@@ -417,8 +421,8 @@ def test_flashcard_progress_persists_on_reenter_review_mode(driver, base_url, ad
     )
 
 @pytest.mark.tcid("TC-FC-036")
-@pytest.mark.auth
-def test_data_deletion_after_account_deletion(driver, base_url, test1_email, test1_password):
+@pytest.mark.flashcards
+def test_study_progress_deletion_after_account_deletion(driver, base_url, test1_email, test1_password):
     """Verify that flashcard progress is wiped and APIs deny access after deleting the account."""
     
     # Sign up and verify account
@@ -499,16 +503,17 @@ def wait_stays_disabled_until_advance(driver, old_word_id, btn_locator, timeout=
         time.sleep(0.05)
     raise TimeoutException("Flashcard did not advance")
 
-def wait_for_completion_state(base_url, word_id, cookies, expected, level, timeout=5):
-    """Poll the study progress API until the word's completion state matches the expected value."""
+def wait_for_completion_state(base_url, word_id, cookies, expected: bool, level: str, timeout=5):
+    """Poll study progress until the word's completed flag matches expected; return record or None."""
     
-    deadline = time.time() + timeout
-    while time.time() < deadline:
+    end_time = time.time() + timeout
+    while time.time() < end_time:
         progress = get_study_progress(base_url, cookies, "flashcards", level, word_id)
         if progress.get("completed") == expected:
             return progress
         time.sleep(0.5)
     return None
+
 
 def wait_for_flashcard_advance(driver, old_word_id, timeout=5):
     """Wait for the flashcard to advance by checking that the word ID has changed."""

@@ -1,3 +1,4 @@
+import uuid
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options as ChromeOptions
@@ -6,7 +7,6 @@ from selenium.webdriver.safari.webdriver import WebDriver as SafariDriver
 from dotenv import load_dotenv
 import pytest
 import os
-import time
 
 load_dotenv()
 
@@ -74,7 +74,7 @@ def admin_password():
 @pytest.fixture(scope="function")
 def test1_email():
     base = os.getenv("TEST1_EMAIL")
-    return f"{base}+{int(time.time())}@gmail.com"
+    return f"{base}+{uuid.uuid4().hex}@gmail.com"
 
 @pytest.fixture(scope="session")
 def test1_password():

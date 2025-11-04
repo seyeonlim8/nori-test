@@ -150,7 +150,7 @@ def test_OX_buttons_disabled_until_next_flashcard(driver, base_url, admin_email,
     """
 
     level = "n2"
-    open_flashcards_page(driver, base_url, admin_email, admin_password, level)
+    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
 
     # ===== O button test =====
     vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
@@ -199,7 +199,7 @@ def test_OX_button_hover_animation_triggers(driver, base_url, admin_email, admin
     """Verify that hovering O and X buttons triggers scale-up transform effect."""
 
     level = "n2"
-    open_flashcards_page(driver, base_url, admin_email, admin_password, level)
+    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
     o_btn = WebDriverWait(driver, 5).until(EC.presence_of_element_located(O_BTN))
     x_btn = WebDriverWait(driver, 5).until(EC.presence_of_element_located(X_BTN))
 
@@ -268,7 +268,7 @@ def test_flashcard_position_persists_after_page_refresh(driver, base_url, admin_
     """Verify the same flashcard remains selected after a browser refresh."""
     
     level = "n2"
-    open_flashcards_page(driver, base_url, admin_email, admin_password, level)
+    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
     
     vocab_before = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
     word_id_before = vocab_before.get_attribute("data-word-id")
@@ -287,7 +287,7 @@ def test_flashcard_position_persists_after_logout_login(driver, base_url, admin_
     """Verify the same flashcard remains selected after logout then login."""
     
     level = "n2"
-    open_flashcards_page(driver, base_url, admin_email, admin_password, level)
+    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
     
     vocab_before = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
     word_id_before = vocab_before.get_attribute("data-word-id")
@@ -310,7 +310,7 @@ def test_flashcard_position_persists_after_reopening_browser_or_across_devices(d
     
     # First browser session
     driver1 = driver_factory()
-    open_flashcards_page(driver1, base_url, admin_email, admin_password, level)
+    open_flashcards_page_with_level_reset(driver1, base_url, admin_email, admin_password, level)
     vocab_before = WebDriverWait(driver1, 5).until(EC.presence_of_element_located(VOCAB))
     word_id_before = vocab_before.get_attribute("data-word-id")
     driver1.quit()
@@ -333,7 +333,7 @@ def test_flashcard_progress_persists_on_reenter_normal_mode(driver, base_url, ad
     """Verify completed words remain persisted after leaving and re-entering flashcards in Normal mode."""
     
     level = "n2"
-    open_flashcards_page(driver, base_url, admin_email, admin_password, level)
+    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
     assert "Review Mode" not in driver.page_source, "Should be in Normal mode, not Review mode"
     
     # Study a few cards
@@ -435,7 +435,7 @@ def test_study_progress_deletion_after_account_deletion(driver, base_url, test1_
     
     # Study a few cards
     level = "n2"
-    open_flashcards_page(driver, base_url, test1_email, test1_password, level)
+    open_flashcards_page_with_level_reset(driver, base_url, test1_email, test1_password, level)
     for _ in range(5):
         o_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(O_BTN))
         vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))

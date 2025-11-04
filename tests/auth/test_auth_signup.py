@@ -11,7 +11,7 @@ EMAIL = (By.XPATH, "//input[@placeholder='Email']")
 PASSWORD = (By.XPATH, "//input[@placeholder='Password']")
 CONFIRM_PW = (By.XPATH, "//input[@placeholder='Confirm Password']")
 CONFIRM_PW_ERR = (By.CSS_SELECTOR, "[data-testid='confirm-pw-error']")
-EMAIL_ERR = (By.CSS_SELECTOR, "[data-testid='email-error']")
+EMAIL_ERR = (By.CSS_SELECTOR, "[data-testid='email-feedback']")
 
 @pytest.mark.tcid("TC-AUTH-001")
 @pytest.mark.auth
@@ -121,16 +121,20 @@ def test_special_char_username_feedback(driver, base_url):
 
 @pytest.mark.tcid("TC-AUTH-007")
 @pytest.mark.auth
-@pytest.mark.parametrize("value,valid", [
-    ("plain", False),
-    ("a@", False),
-    ("a@b", False),
-    ("a@b.", False),
-    ("a@b.c", False),
-    ("user.name+tag@ex.co", True),
+@pytest.mark.parametrize("value, valid, expected_error", [
+    ("plain", False, "Invalid email format"),
+    ("a@", False, "Invalid email format"),
+    ("a@b", False, "Invalid email format"),
+    ("a@b.", False, "Invalid email format"),
+    ("a@b.c", False, "Invalid email format"),
+    ("user.name+tag@ex.co", True, None),
+    pytest.param("__ADMIN__", False, "Email is already in use", id="existing-email"),
 ])
-def test_invalid_email_format_feedback(driver, base_url, value, valid):
+def test_invalid_email_format_and_uniqueness_feedback(driver, base_url, admin_email, value, valid, expected_error):
     """Verify error visibility for invalid vs valid email formats."""
+
+    if value == "__ADMIN__":
+        value = admin_email
 
     driver.get(f"{base_url}/signup")
     driver.find_element(*EMAIL).send_keys(value)
@@ -146,7 +150,7 @@ def test_invalid_email_format_feedback(driver, base_url, value, valid):
             message=f"Email error was not shown for invalid value: {value!r}"
         )
         msg = driver.find_element(*EMAIL_ERR).text
-        assert "Invalid email format" in msg, "Email format error message not visible"
+        assert expected_error in msg, f"Unexpected email error message: {msg!r}"
         
 @pytest.mark.tcid("TC-AUTH-008")
 @pytest.mark.auth

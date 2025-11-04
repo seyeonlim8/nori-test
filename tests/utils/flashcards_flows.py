@@ -44,7 +44,7 @@ def open_flashcards_page_with_level_reset(driver, base_url, email, password, lev
     reset_url = f"{base_url}/api/study-progress/reset"
     r = requests.post(
         reset_url,
-        params={"type": "flashcard", "level": level},
+        params={"type": "flashcards", "level": level},
         cookies=cookies,
         timeout=5,
     )

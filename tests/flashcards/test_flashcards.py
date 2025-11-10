@@ -8,7 +8,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import TimeoutException
 from tests.auth.test_auth_email_verification import _dismiss_alert_if_present
 from tests.utils.email_verification import fetch_verify_url_from_mailhog
-from tests.utils.flashcards_flows import enter_review_mode, open_flashcards_page, open_flashcards_page_with_level_reset, wait_for_completion_state, wait_for_flashcard_advance, wait_stays_disabled_until_advance
+from tests.utils.flashcards_flows import enter_review_mode, login_and_open_flashcards_page, login_and_open_flashcards_page_with_level_reset, mark_all_flashcards_O_and_accept_alert, reset_flashcards_level_progress, study_flashcards, wait_for_completion_state, wait_for_flashcard_advance, wait_stays_disabled_until_advance
 from tests.utils.auth_flows import fill_and_submit_signup, get_auth_cookies, logout, make_unique_username
 from tests.utils.db_client import get_study_progress
 
@@ -24,7 +24,7 @@ SUBJECT = "NORI Email Verification"
 def test_flashcard_vocabulary_visible(driver, base_url, admin_email, admin_password):
     """Verify that the vocabulary element is visible and furigana is hidden on initial flashcard load."""
     
-    open_flashcards_page(driver, base_url, admin_email, admin_password, "n2")
+    login_and_open_flashcards_page(driver, base_url, admin_email, admin_password, "n2")
 
     # Assert vocabulary is visible
     vocab_element = WebDriverWait(driver, 5).until(
@@ -45,7 +45,7 @@ def test_flashcard_vocabulary_visible(driver, base_url, admin_email, admin_passw
 def test_japanese_characters_render(driver, base_url, admin_email, admin_password):
     """Verify that the vocabulary text is non-empty, contains no broken glyphs, and uses the correct font."""
     
-    open_flashcards_page(driver, base_url, admin_email, admin_password, "n2")
+    login_and_open_flashcards_page(driver, base_url, admin_email, admin_password, "n2")
 
     vocab = WebDriverWait(driver, 5).until(
         EC.presence_of_element_located(VOCAB)
@@ -65,7 +65,7 @@ def test_o_button_marks_word_as_completed(driver, base_url, admin_email, admin_p
     """Verify that clicking the O button marks the current word as completed in the database."""
     
     level = "n2"
-    open_flashcards_page(driver, base_url, admin_email, admin_password, level)
+    login_and_open_flashcards_page(driver, base_url, admin_email, admin_password, level)
     
     vocab = WebDriverWait(driver, 5).until(
         EC.presence_of_element_located(VOCAB)
@@ -92,7 +92,7 @@ def test_x_button_does_not_mark_word_completed(driver, base_url, admin_email, ad
     """Verify that clicking the X button does not mark the word as completed in the database."""
     
     level = "n2"
-    open_flashcards_page(driver, base_url, admin_email, admin_password, level)
+    login_and_open_flashcards_page(driver, base_url, admin_email, admin_password, level)
         
     vocab = WebDriverWait(driver, 5).until(
         EC.presence_of_element_located(VOCAB)
@@ -119,7 +119,7 @@ def test_advance_to_next_flashcard(driver, base_url, admin_email, admin_password
     """Verify that clicking either O or X advances to the next flashcard."""
 
     level = "n2"
-    open_flashcards_page(driver, base_url, admin_email, admin_password, level)
+    login_and_open_flashcards_page(driver, base_url, admin_email, admin_password, level)
         
     vocab_1 = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
     word_id_1 = vocab_1.get_attribute("data-word-id")
@@ -151,7 +151,7 @@ def test_OX_buttons_disabled_until_next_flashcard(driver, base_url, admin_email,
     """
 
     level = "n2"
-    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
 
     # ===== O button test =====
     vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
@@ -200,7 +200,7 @@ def test_OX_button_hover_animation_triggers(driver, base_url, admin_email, admin
     """Verify that hovering O and X buttons triggers scale-up transform effect."""
 
     level = "n2"
-    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
     o_btn = WebDriverWait(driver, 5).until(EC.presence_of_element_located(O_BTN))
     x_btn = WebDriverWait(driver, 5).until(EC.presence_of_element_located(X_BTN))
 
@@ -224,8 +224,10 @@ def test_OX_button_hover_animation_triggers(driver, base_url, admin_email, admin
 @pytest.mark.tcid("TC-FC-019")
 @pytest.mark.flashcards
 def test_flashcard_review_mode_modal_appears(driver, base_url, admin_email, admin_password):
+    """Verify that the review mode modal appears after marking multiple flashcards incorrect."""
+    
     level = "TEST"
-    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
     
     modal_seen = False
     alert_poll_seconds = 1
@@ -250,8 +252,10 @@ def test_flashcard_review_mode_modal_appears(driver, base_url, admin_email, admi
 @pytest.mark.tcid("TC-FC-020")
 @pytest.mark.flashcards
 def test_flashcard_review_mode_modal_starts_review_mode(driver, base_url, admin_email, admin_password):
+    """Verify that accepting the review mode modal transitions the session into Review Mode."""
+    
     level = "TEST"
-    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
     
     enter_review_mode(driver, 2, 3)
     progress_counter = WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
@@ -260,8 +264,10 @@ def test_flashcard_review_mode_modal_starts_review_mode(driver, base_url, admin_
 @pytest.mark.tcid("TC-FC-021")
 @pytest.mark.flashcards
 def test_review_mode_modal_cancel_redirects_to_level_selection(driver, base_url, admin_email, admin_password):
+    """Verify that dismissing the review mode modal redirects to level selection and resets progress."""
+    
     level = "TEST"
-    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
     
     alert_poll_seconds = 1
     for _ in range(5):
@@ -297,7 +303,7 @@ def test_review_mode_excludes_completed_flashcards(driver, base_url, admin_email
     """Ensure review mode only surfaces words that still need review."""
     
     level = "TEST"
-    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
     
     # Complete a cycle to enter Review mode - test set length is 5.
     enter_review_mode(driver, 2, 3) 
@@ -307,7 +313,6 @@ def test_review_mode_excludes_completed_flashcards(driver, base_url, admin_email
     cookies = get_auth_cookies(driver)
     progress = get_study_progress(base_url, cookies, "flashcards", level)
     completed = {p["wordId"] for p in progress if p["completed"]}
-    print("Completed set:", completed)
     assert completed, "No completed words found — test precondition failed."
     
     displayed_set = set()
@@ -316,8 +321,8 @@ def test_review_mode_excludes_completed_flashcards(driver, base_url, admin_email
             vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
             word_id = int(vocab.get_attribute("data-word-id"))
             displayed_set.add(word_id)
-            print(word_id)
-            driver.find_element(*O_BTN).click()
+            o_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(O_BTN))
+            o_btn.click()
 
             # If alert shows up, review set is done
             try:
@@ -336,49 +341,53 @@ def test_review_mode_excludes_completed_flashcards(driver, base_url, admin_email
 @pytest.mark.tcid("TC-FC-023")
 @pytest.mark.flashcards
 def test_review_mode_text_is_displayed_next_to_progress_counter(driver, base_url, admin_email, admin_password):
+    """Verify that 'Review Mode' label is displayed next to the progress counter when in review mode."""
+    
     level = "TEST"
-    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
     
     progress_counter = WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
     # Complete a cycle to enter Review mode - test set length is 5.
     enter_review_mode(driver, 0, 5) 
-    assert "0 / 5 (Review Mode)" in progress_counter.text, "The text 'Review Mode' is not displayed"
+    
+    text = progress_counter.text.strip()
+    fraction, mode = text.split("(", 1)
+    current_str, total_str = [part.strip() for part in fraction.split("/", 1)]
+    mode = mode.rstrip(") ").strip() # Because we split the string with '('.
+
+    assert int(current_str) == 0, f"Expected 1 card reviewed, saw {current_str} (text: {text})"
+    assert int(total_str) == 5, f"Expected 4 total cards, saw {total_str} (text: {text})"
+    assert mode == "Review Mode", f"Expected Review Mode label, saw {mode!r} (text: {text})"
     
 @pytest.mark.tcid("TC-FC-024")
 @pytest.mark.flashcards
 def test_review_mode_progress_counter(driver, base_url, admin_email, admin_password):
+    """Verify that the progress counter displays correct counts when entering review mode."""
+    
     level = "TEST"
-    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
     
     enter_review_mode(driver, 1, 4) 
-    o_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(O_BTN))
-    o_btn.click()
     progress_counter = WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
-    assert "1 / 4 (Review Mode)" in progress_counter.text, "Progress not displayed properly. Current text: {progress_counter.text}"
+    
+    text = progress_counter.text.strip()
+    fraction, mode = text.split("(", 1)
+    current_str, total_str = [part.strip() for part in fraction.split("/", 1)]
+    mode = mode.rstrip(") ").strip() # Because we split the string with '('.
+
+    assert int(current_str) == 0, f"Expected 0 card completed, saw {current_str} (text: {text})"
+    assert int(total_str) == 4, f"Expected 4 total cards, saw {total_str} (text: {text})"
+    assert mode == "Review Mode", f"Expected Review Mode label, saw {mode!r} (text: {text})"
     
 @pytest.mark.tcid("TC-FC-026")
 @pytest.mark.flashcards
 def test_progress_reset_modal_message(driver, base_url, admin_email, admin_password):
+    """Verify that the progress reset modal displays the correct message upon completion."""
     
     level = "TEST"
-    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
     
-    while True:
-        try:
-            vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
-            word_id = int(vocab.get_attribute("data-word-id"))
-            driver.find_element(*O_BTN).click()
-            try:
-                alert = WebDriverWait(driver, 1).until(EC.alert_is_present())
-                modal_msg = alert.text
-                alert.accept()
-                break
-            except TimeoutException:
-                WebDriverWait(driver, 5).until(
-                    lambda d: d.find_element(*VOCAB).get_attribute("data-word-id") != str(word_id)
-                )
-        except TimeoutException:
-            break
+    modal_msg = mark_all_flashcards_O_and_accept_alert(driver)
     
     assert modal_msg is not None, "Review modal never appeared"
     assert "Progress has been reset" in modal_msg, "Incorrect modal message"
@@ -386,36 +395,63 @@ def test_progress_reset_modal_message(driver, base_url, admin_email, admin_passw
 @pytest.mark.tcid("TC-FC-027")
 @pytest.mark.flashcards
 def test_progress_counter_after_reset(driver, base_url, admin_email, admin_password):
+    """Verify that the progress counter resets to 0 after completing all flashcards and resetting."""
     
     level = "TEST"
-    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
     
-    while True:
-        try:
-            vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
-            word_id = int(vocab.get_attribute("data-word-id"))
-            driver.find_element(*O_BTN).click()
-            try:
-                alert = WebDriverWait(driver, 1).until(EC.alert_is_present())
-                alert.accept()
-                break
-            except TimeoutException:
-                WebDriverWait(driver, 5).until(
-                    lambda d: d.find_element(*VOCAB).get_attribute("data-word-id") != str(word_id)
-                )
-        except TimeoutException:
-            break
+    mark_all_flashcards_O_and_accept_alert(driver)
     
     progress_counter = WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
-    assert "0 / 5" in progress_counter.text, "Progress counter is not reset to 0. Current: {progress_counter.text}"
+    current, total = [int(part.strip()) for part in progress_counter.text.split("/")[:2]]
+    assert current == 0 and total == 5, f"Progress counter is not reset to 0. Current: {progress_counter.text}"
 
+@pytest.mark.tcid("TC-FC-028")
+@pytest.mark.flashcards
+def test_study_progress_deleted_from_db_after_reset(driver, base_url, admin_email, admin_password):
+    """Verify that study progress is completely removed from the database after reset."""
+    
+    level = "TEST"
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    
+    mark_all_flashcards_O_and_accept_alert(driver)
+    
+    # Assert progress is reset
+    cookies = get_auth_cookies(driver)
+    progress = get_study_progress(base_url, cookies, "flashcards", level)
+    assert progress == [], f"Expected empty list, got {progress}"
+    
+@pytest.mark.tcid("TC-FC-029")
+@pytest.mark.flashcards
+def test_reset_scope_limited_to_current_level(driver, base_url, admin_email, admin_password):
+    """Verify that resetting progress for one level does not affect progress in other levels."""
+    
+    completed_num = 5
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, "N5")
+    study_flashcards(driver, completed_num, 0)
+    
+    reset_flashcards_level_progress(driver, base_url, "TEST")
+    driver.get(f"{base_url}/study/flashcards/TEST")
+    modal_msg = mark_all_flashcards_O_and_accept_alert(driver)
+    assert modal_msg is not None, "Review modal never appeared"
+    assert "Progress has been reset" in modal_msg, "Incorrect modal message"
+    
+    progress_counter_TEST = WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
+    current_TEST, _ = [int(part.strip()) for part in progress_counter_TEST.text.split("/")[:2]]
+    assert current_TEST == 0, f"TEST progress is not reset to 0: {progress_counter_TEST.text}"
+    
+    driver.get(f"{base_url}/study/flashcards/n5")
+    progress_counter_N5 = WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
+    current_N5, _ = [int(part.strip()) for part in progress_counter_N5.text.split("/")[:2]]
+    assert current_N5 == completed_num, f"N5 progress changed: {progress_counter_N5.text}"
+    
 @pytest.mark.tcid("TC-FC-031")
 @pytest.mark.flashcards
 def test_flashcard_position_persists_after_page_refresh(driver, base_url, admin_email, admin_password):
     """Verify the same flashcard remains selected after a browser refresh."""
     
     level = "n2"
-    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
     
     vocab_before = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
     word_id_before = vocab_before.get_attribute("data-word-id")
@@ -434,13 +470,14 @@ def test_flashcard_position_persists_after_logout_login(driver, base_url, admin_
     """Verify the same flashcard remains selected after logout then login."""
     
     level = "n2"
-    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
     
+    study_flashcards(driver, 5, 0)
     vocab_before = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
     word_id_before = vocab_before.get_attribute("data-word-id")
     
     logout(driver)
-    open_flashcards_page(driver, base_url, admin_email, admin_password, level)
+    login_and_open_flashcards_page(driver, base_url, admin_email, admin_password, level)
     
     vocab_after = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
     word_id_after = vocab_after.get_attribute("data-word-id")
@@ -457,14 +494,14 @@ def test_flashcard_position_persists_after_reopening_browser_or_across_devices(d
     
     # First browser session
     driver1 = driver_factory()
-    open_flashcards_page_with_level_reset(driver1, base_url, admin_email, admin_password, level)
+    login_and_open_flashcards_page_with_level_reset(driver1, base_url, admin_email, admin_password, level)
     vocab_before = WebDriverWait(driver1, 5).until(EC.presence_of_element_located(VOCAB))
     word_id_before = vocab_before.get_attribute("data-word-id")
     driver1.quit()
     
     # Second browser session
     driver2 = driver_factory()
-    open_flashcards_page(driver2, base_url, admin_email, admin_password, level)
+    login_and_open_flashcards_page(driver2, base_url, admin_email, admin_password, level)
     vocab_after = WebDriverWait(driver2, 5).until(EC.presence_of_element_located(VOCAB))
     word_id_after = vocab_after.get_attribute("data-word-id")
     
@@ -480,7 +517,7 @@ def test_flashcard_progress_persists_on_reenter_normal_mode(driver, base_url, ad
     """Verify completed words remain persisted after leaving and re-entering flashcards in Normal mode."""
     
     level = "n2"
-    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
     progress_counter = WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
     assert "Review Mode" not in progress_counter.text, "Should be in Normal mode, not Review mode"
     
@@ -527,7 +564,7 @@ def test_flashcard_progress_persists_on_reenter_review_mode(driver, base_url, ad
     
     level = "TEST"
     # Clear any previous progress for TEST set
-    open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
     
     # Complete a cycle to enter Review mode - test set length is 5.
     enter_review_mode(driver, 1, 4) 
@@ -584,7 +621,7 @@ def test_study_progress_deletion_after_account_deletion(driver, base_url, test1_
     
     # Study a few cards
     level = "n2"
-    open_flashcards_page_with_level_reset(driver, base_url, test1_email, test1_password, level)
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, test1_email, test1_password, level)
     for _ in range(5):
         o_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(O_BTN))
         vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))

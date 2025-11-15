@@ -361,7 +361,7 @@ def test_review_mode_text_is_displayed_next_to_progress_counter(driver, base_url
     
 @pytest.mark.tcid("TC-FC-024")
 @pytest.mark.flashcards
-def test_review_mode_progress_counter(driver, base_url, admin_email, admin_password):
+def test_flashcards_review_mode_progress_counter(driver, base_url, admin_email, admin_password):
     """Verify that the progress counter displays correct counts when entering review mode."""
     
     level = "TEST"

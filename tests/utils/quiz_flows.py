@@ -6,13 +6,13 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 from tests.utils.auth_flows import get_auth_cookies, login
-from tests.utils.db_client import get_study_progress
+from tests.utils.db_client import get_study_progress, get_word_from_word_id
 
 STUDY_BTN = (By.CSS_SELECTOR, "[data-testid='study-btn']")
 QZ_BTN = (By.CSS_SELECTOR, "[data-testid='quiz-btn']")
 QUIZ = (By.CSS_SELECTOR, "[data-testid='question-box']")
 
-def open_quiz_page_with_level_reset(driver, base_url, email, password, level, type):
+def login_and_open_quiz_page_with_level_reset(driver, base_url, email, password, level, type):
     """Log in, reset quiz progress for the given level/type, and open the quiz page."""
     
     login(driver, base_url, email, password)
@@ -54,44 +54,78 @@ def open_quiz_page_with_level_reset(driver, base_url, email, password, level, ty
     )
     type_btn.click()
     
-def click_correct_quiz_answer(driver):
-    """Click the correct quiz answer inferred from the current question text."""
+def login_and_open_quiz_type_selection_page(driver, base_url, email, password, level):
+    
+    
+    login(driver, base_url, email, password)
+    WebDriverWait(driver, 5).until(EC.url_to_be(f"{base_url}/"))
+    
+    study_btn = WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located(STUDY_BTN),
+        "Study button is not found"
+    )
+    ActionChains(driver).move_to_element(study_btn).perform()
+    quiz_btn = WebDriverWait(driver, 5).until(
+        EC.element_to_be_clickable(QZ_BTN),
+        "Quiz button is not clickable"
+    )
+    quiz_btn.click()
+    level_btn = WebDriverWait(driver, 5).until(
+        EC.element_to_be_clickable((By.CSS_SELECTOR, f"[data-testid='level-btn-{level.lower()}']")),
+        f"{level.upper()} button is not clickable"
+    )
+    level_btn.click()
+    
+def get_correct_quiz_answer_element(driver, base_url, type):
+    """Get the correct quiz answer element."""
     
     question_element = WebDriverWait(driver, 5).until(
         EC.presence_of_element_located(QUIZ)
     )
+    word_id = question_element.get_attribute("data-word-id")
+    word = get_word_from_word_id(base_url, word_id)
+    correct_ans = word['furigana'] if type == "kanji-to-furigana" else word['kanji']    
     
-    last_char = question_element.text.strip()[-1]
-    answer_btn = WebDriverWait(driver, 5).until(
-        EC.element_to_be_clickable((
-            By.CSS_SELECTOR,
-            f"[data-testid^='answer-'][data-answer-text$='{last_char}']"
-        ))
+    buttons = WebDriverWait(driver, 5).until(
+        EC.presence_of_all_elements_located((By.CSS_SELECTOR, "[data-testid^='answer-']"))
     )
-    answer_btn.click()
+    for b in buttons:
+        if b.text[3:] == correct_ans:
+            return b
+    raise AssertionError(f"Correct answer '{correct_ans}' not found among quiz options. B text: {b.text} != {correct_ans}")
     
-def click_incorrect_quiz_answer(driver):
+def click_correct_quiz_answer(driver, base_url, type):
+    """Click the correct quiz answer."""
+    
+    correct_ans_btn = get_correct_quiz_answer_element(driver, base_url, type)
+    correct_ans_btn.click()
+    return correct_ans_btn
+    
+def click_incorrect_quiz_answer(driver, base_url, type):
     """Click an incorrect quiz answer (one that does not match the expected value)."""
     
     question_element = WebDriverWait(driver, 5).until(
         EC.presence_of_element_located(QUIZ)
     )
+    word_id = question_element.get_attribute("data-word-id")
+    word = get_word_from_word_id(base_url, word_id)
+    correct_ans = word['furigana'] if type == "kanji-to-furigana" else word['kanji']    
     
-    last_char = question_element.text.strip()[-1]
-
-    buttons = driver.find_elements(By.CSS_SELECTOR, "[data-testid^='answer-']")
-    incorrect_btn = next(
-        btn for btn in buttons
-        if not btn.text.strip().endswith(last_char)
+    buttons = WebDriverWait(driver, 5).until(
+        EC.presence_of_all_elements_located((By.CSS_SELECTOR, "[data-testid^='answer-']"))
     )
-    incorrect_btn.click()
+    for b in buttons:
+        if b.text[3:] != correct_ans:
+            b.click()
+            return b
+    raise AssertionError("Incorrect answer not found among quiz options")
     
 def wait_for_completion_state(base_url, word_id, cookies, expected, level, type, timeout=5):
     """Poll the study progress API until the word's completion state matches the expected value."""
     
     deadline = time.time() + timeout
     while time.time() < deadline:
-        progress = get_study_progress(base_url, cookies, "quiz-{type}", level, word_id)
+        progress = get_study_progress(base_url, cookies, f"quiz-{type}", level, word_id)
         if progress.get("completed") == expected:
             return progress
         time.sleep(0.5)
@@ -126,18 +160,18 @@ def wait_for_quiz_advance(driver, old_word_id, timeout=5):
         "Quiz did not advance"
     )
 
-def enter_review_mode(driver, num_of_completed, num_of_incomplete):
+def enter_review_mode(driver, num_of_correct, num_of_incorrect):
     """Complete the requested mix of quizzes so the session enters review mode."""
     
-    alert_poll_seconds = 1.5
-    for _ in range(num_of_completed):
+    alert_poll_seconds = 1
+    for _ in range(num_of_correct):
         question = WebDriverWait(driver, 5).until(
             EC.presence_of_element_located(QUIZ)
         )
         current_word_id = question.get_attribute("data-word-id")
         click_correct_quiz_answer(driver)
         wait_for_quiz_advance(driver, current_word_id)
-    for _ in range(num_of_incomplete):
+    for _ in range(num_of_incorrect):
         question = WebDriverWait(driver, 5).until(
             EC.presence_of_element_located(QUIZ)
         )

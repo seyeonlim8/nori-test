@@ -251,7 +251,7 @@ def test_flashcard_review_mode_modal_appears(driver, base_url, admin_email, admi
 
 @pytest.mark.tcid("TC-FC-020")
 @pytest.mark.flashcards
-def test_flashcard_review_mode_modal_starts_review_mode(driver, base_url, admin_email, admin_password):
+def test_accepting_review_modal_starts_flashcards_review_mode(driver, base_url, admin_email, admin_password):
     """Verify that accepting the review mode modal transitions the session into Review Mode."""
     
     level = "TEST"
@@ -263,7 +263,7 @@ def test_flashcard_review_mode_modal_starts_review_mode(driver, base_url, admin_
     
 @pytest.mark.tcid("TC-FC-021")
 @pytest.mark.flashcards
-def test_review_mode_modal_cancel_redirects_to_level_selection(driver, base_url, admin_email, admin_password):
+def test_cancel_review_modal_redirects_and_resets_flashcards_progress(driver, base_url, admin_email, admin_password):
     """Verify that dismissing the review mode modal redirects to level selection and resets progress."""
     
     level = "TEST"
@@ -381,7 +381,7 @@ def test_flashcards_review_mode_progress_counter(driver, base_url, admin_email, 
     
 @pytest.mark.tcid("TC-FC-026")
 @pytest.mark.flashcards
-def test_progress_reset_modal_message(driver, base_url, admin_email, admin_password):
+def test_flashcards_progress_reset_modal_message(driver, base_url, admin_email, admin_password):
     """Verify that the progress reset modal displays the correct message upon completion."""
     
     level = "TEST"
@@ -394,7 +394,7 @@ def test_progress_reset_modal_message(driver, base_url, admin_email, admin_passw
     
 @pytest.mark.tcid("TC-FC-027")
 @pytest.mark.flashcards
-def test_progress_counter_after_reset(driver, base_url, admin_email, admin_password):
+def test_flashcards_progress_counter_after_reset(driver, base_url, admin_email, admin_password):
     """Verify that the progress counter resets to 0 after completing all flashcards and resetting."""
     
     level = "TEST"
@@ -408,7 +408,7 @@ def test_progress_counter_after_reset(driver, base_url, admin_email, admin_passw
 
 @pytest.mark.tcid("TC-FC-028")
 @pytest.mark.flashcards
-def test_study_progress_deleted_from_db_after_reset(driver, base_url, admin_email, admin_password):
+def test_flashcards_study_progress_deleted_from_db_after_reset(driver, base_url, admin_email, admin_password):
     """Verify that study progress is completely removed from the database after reset."""
     
     level = "TEST"
@@ -423,7 +423,7 @@ def test_study_progress_deleted_from_db_after_reset(driver, base_url, admin_emai
     
 @pytest.mark.tcid("TC-FC-029")
 @pytest.mark.flashcards
-def test_reset_scope_limited_to_current_level(driver, base_url, admin_email, admin_password):
+def test_flashcards_reset_scope_limited_to_current_level(driver, base_url, admin_email, admin_password):
     """Verify that resetting progress for one level does not affect progress in other levels."""
     
     completed_num = 5
@@ -453,6 +453,7 @@ def test_flashcard_position_persists_after_page_refresh(driver, base_url, admin_
     level = "n2"
     login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
     
+    study_flashcards(driver, 0, 3)
     vocab_before = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
     word_id_before = vocab_before.get_attribute("data-word-id")
     
@@ -462,6 +463,18 @@ def test_flashcard_position_persists_after_page_refresh(driver, base_url, admin_
     word_id_after = vocab_after.get_attribute("data-word-id")
     assert word_id_before == word_id_after, (
         f"Flashcard did not persist after refresh: before={word_id_before}, after={word_id_after}"
+    )
+    
+    study_flashcards(driver, 3, 0)
+    vocab_before2 = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+    word_id_before2 = vocab_before2.get_attribute("data-word-id")
+    
+    driver.refresh()
+    
+    vocab_after2 = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+    word_id_after2 = vocab_after2.get_attribute("data-word-id")
+    assert word_id_before2 == word_id_after2, (
+        f"Flashcard did not persist after refresh: before={word_id_before2}, after={word_id_after2}"
     )
     
 @pytest.mark.tcid("TC-FC-032")

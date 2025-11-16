@@ -6,7 +6,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import TimeoutException
 from tests.utils.auth_flows import get_auth_cookies
 from tests.utils.db_client import get_study_progress, get_word_from_word_id
-from tests.utils.quiz_flows import click_correct_quiz_answer, click_incorrect_quiz_answer, enter_review_mode, get_correct_quiz_answer_element, login_and_open_quiz_page_with_level_reset, login_and_open_quiz_type_selection_page, wait_for_completion_state, wait_for_quiz_advance, wait_stays_disabled_until_advance
+from tests.utils.quiz_flows import answer_all_quizzes_correctly_and_accept_alert, click_correct_quiz_answer, click_incorrect_quiz_answer, dismiss_review_mode_modal, enter_review_mode, get_correct_quiz_answer_element, login_and_open_quiz_page_with_level_reset, login_and_open_quiz_type_selection_page, reset_quiz_level_progress, solve_quizzes, wait_for_completion_state, wait_for_quiz_advance, wait_stays_disabled_until_advance
 
 STUDY_BTN = (By.CSS_SELECTOR, "[data-testid='study-btn']")
 QUIZ = (By.CSS_SELECTOR, "[data-testid='question-box']")
@@ -237,9 +237,9 @@ def test_answer_quiz_with_keyboard_input(driver, base_url, admin_email, admin_pa
     
     for i in range(1, 5):
         quiz = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
-        quiz.click()         
+        quiz.click()       
         old_word_id = quiz.get_attribute("data-word-id")
-        ActionChains(driver).send_keys(i).perform()
+        ActionChains(driver).send_keys(str(i)).perform()
         
         wait_for_quiz_advance(driver, old_word_id)
         new_word_id = quiz.get_attribute("data-word-id")
@@ -335,6 +335,94 @@ def test_answer_buttons_disabled_until_next_quiz(driver, base_url, admin_email, 
         "Answer button still disabled after next quiz loaded"
     )
     
+@pytest.mark.tcid("TC-QZ-013")
+@pytest.mark.quiz
+def test_number_keys_select_corresponding_answers(driver, base_url, admin_email, admin_password):
+    
+    level = "TEST"
+    type = "furigana-to-kanji"
+    login_and_open_quiz_page_with_level_reset(driver, base_url, admin_email, admin_password, level, type)
+    
+    for i in range(1, 5):
+        quiz = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
+        quiz.click()  
+        old_word_id = quiz.get_attribute("data-word-id")
+        selector = f"answer-{i}"
+        ActionChains(driver).send_keys(str(i)).perform()
+        
+        WebDriverWait(driver, 2).until(
+            lambda d: any(
+                colors in d.find_element(By.CSS_SELECTOR, f"[data-testid='{selector}']").get_attribute("class")
+                for colors in ("bg-green-400", "bg-red-400")
+            ),
+            "Answer not selected with number key."
+        )
+        wait_for_quiz_advance(driver, old_word_id)
+
+@pytest.mark.tcid("TC-QZ-017")
+@pytest.mark.quiz
+def test_quiz_review_mode_modal_appears(driver, base_url, admin_email, admin_password):
+    """Verify that the review mode modal appears"""
+    
+    level = "TEST"
+    type = "kanji-to-furigana"
+    login_and_open_quiz_page_with_level_reset(driver, base_url, admin_email, admin_password, level, type)
+    
+    modal_seen = False
+    alert_poll_seconds = 1
+    for _ in range(5):
+        quiz = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
+        old_word_id = quiz.get_attribute("data-word-id")
+        click_incorrect_quiz_answer(driver, base_url, type)
+        try:
+            alert = WebDriverWait(driver, alert_poll_seconds).until(EC.alert_is_present())
+            alert_msg = alert.text
+            assert "5 words need review" in alert_msg
+        except TimeoutException:
+            wait_for_quiz_advance(driver, old_word_id)
+        else:
+            modal_seen = True
+            alert.accept()
+            break
+    
+    assert modal_seen, "Review modal did not appear after answering all quizzes."
+    
+@pytest.mark.tcid("TC-QZ-018")
+@pytest.mark.quiz
+def test_accepting_review_modal_starts_quiz_review_mode(driver, base_url, admin_email, admin_password):
+    
+    level = "TEST"
+    type = "furigana-to-kanji"
+    login_and_open_quiz_page_with_level_reset(driver, base_url, admin_email, admin_password, level, type)
+    
+    enter_review_mode(driver, base_url, type, 2, 3)
+    progress_counter = WebDriverWait(driver, 5).until(
+        EC.visibility_of_element_located(PROG_CNT),
+        "Progress counter not visible"
+    )
+    assert "(Review Mode)" in progress_counter.text, f"Progress counter not indicating review mode. Current text: {progress_counter.text}"
+
+@pytest.mark.tcid("TC-QZ-019")
+@pytest.mark.quiz
+def test_cancel_review_modal_redirects_and_resets_quiz_progress(driver, base_url, admin_email, admin_password):
+    
+    level = "TEST"
+    type = "furigana-to-kanji"
+    login_and_open_quiz_page_with_level_reset(driver, base_url, admin_email, admin_password, level, type)
+    
+    dismiss_review_mode_modal(driver, base_url, type, 2, 3)
+            
+    # Assert redirection to level selection page
+    WebDriverWait(driver, 5).until(
+        EC.url_to_be(f"{base_url}/study/quiz"),
+    )
+    assert driver.current_url == f"{base_url}/study/quiz", "Did not redirect to level selection page"
+    
+    # Assert progress is reset
+    cookies = get_auth_cookies(driver)
+    progress = get_study_progress(base_url, cookies, f"quiz-{type}", level)
+    assert progress == [], f"Expected empty list, got {progress}"
+    
 @pytest.mark.tcid("TC-QZ-020")
 @pytest.mark.quiz
 def test_review_mode_excludes_completed_quiz(driver, base_url, admin_email, admin_password):
@@ -413,3 +501,103 @@ def test_quiz_review_mode_progress_counter(driver, base_url, admin_email, admin_
     assert int(current_str) == 0, f"Expected 0 quiz completed, saw {current_str} (text: {text})"
     assert int(total_str) == 4, f"Expected 4 total quizzes, saw {total_str} (text: {text})"
     assert mode == "Review Mode", f"Expected Review Mode label, saw {mode!r} (text: {text})"
+    
+@pytest.mark.tcid("TC-QZ-024")
+@pytest.mark.quiz
+def test_quiz_progress_reset_modal_message(driver, base_url, admin_email, admin_password):
+    
+    level = "TEST"
+    type = "kanji-to-furigana"
+    login_and_open_quiz_page_with_level_reset(driver, base_url, admin_email, admin_password, level, type)
+    
+    modal_msg = answer_all_quizzes_correctly_and_accept_alert(driver, base_url, type)
+    assert "Quiz completed! Progress reset." in modal_msg
+    
+@pytest.mark.tcid("TC-QZ-025")
+@pytest.mark.quiz
+def test_quiz_progress_counter_after_reset(driver, base_url, admin_email, admin_password):
+    """Verify that the progress counter resets to 0 after completing all quizzes and resetting."""
+    
+    level = "TEST"
+    type = "furigana-to-kanji"
+    login_and_open_quiz_page_with_level_reset(driver, base_url, admin_email, admin_password, level, type)
+    
+    answer_all_quizzes_correctly_and_accept_alert(driver, base_url, type)
+    
+    progress_counter = WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
+    current, total = [int(part.strip()) for part in progress_counter.text.split("/")[:2]]
+    assert current == 0 and total == 5, f"Progress counter is not reset to 0. Current: {progress_counter.text}"
+    
+@pytest.mark.tcid("TC-QZ-026")
+@pytest.mark.quiz
+def test_quiz_study_progress_deleted_from_db_after_reset(driver, base_url, admin_email, admin_password):
+    """Verify that study progress is completely removed from the database after reset."""
+    
+    level = "TEST"
+    type = "furigana-to-kanji"
+    login_and_open_quiz_page_with_level_reset(driver, base_url, admin_email, admin_password, level, type)
+    
+    answer_all_quizzes_correctly_and_accept_alert(driver, base_url, type)
+    
+    # Assert progress is reset
+    cookies = get_auth_cookies(driver)
+    progress = get_study_progress(base_url, cookies, f"quiz-{type}", level)
+    assert progress == [], f"Expected empty list, got {progress}"
+    
+@pytest.mark.tcid("TC-QZ-027")
+@pytest.mark.quiz
+def test_quiz_reset_scope_limited_to_current_level(driver, base_url, admin_email, admin_password):
+    """Verify that resetting progress for one level does not affect progress in other levels."""
+    
+    correct_num = 5
+    type = "furigana-to-kanji"
+    login_and_open_quiz_page_with_level_reset(driver, base_url, admin_email, admin_password, "N5", type)
+    solve_quizzes(driver, base_url, correct_num, 2)
+    
+    reset_quiz_level_progress(driver, base_url, "TEST", type)
+    driver.get(f"{base_url}/study/quiz/TEST/{type}")
+    modal_msg = answer_all_quizzes_correctly_and_accept_alert(driver, base_url, type)
+    assert modal_msg is not None, "Review modal never appeared"
+    assert "Quiz completed! Progress reset." in modal_msg, "Incorrect modal message"
+    
+    progress_counter_TEST = WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
+    current_TEST, _ = [int(part.strip()) for part in progress_counter_TEST.text.split("/")[:2]]
+    assert current_TEST == 0, f"TEST progress is not reset to 0: {progress_counter_TEST.text}"
+    
+    driver.get(f"{base_url}/study/quiz/n5/{type}")
+    progress_counter_N5 = WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
+    current_N5, _ = [int(part.strip()) for part in progress_counter_N5.text.split("/")[:2]]
+    assert current_N5 == correct_num, f"N5 progress changed: {progress_counter_N5.text}"
+
+@pytest.mark.tcid("TC-QZ-029")
+@pytest.mark.quiz
+def test_quiz_position_persists_after_page_refresh(driver, base_url, admin_email, admin_password):
+    """Verify the same flashcard remains selected after a browser refresh."""
+    
+    level = "n2"
+    type = "furigana-to-kanji"
+    login_and_open_quiz_page_with_level_reset(driver, base_url, admin_email, admin_password, level, type)
+        
+    solve_quizzes(driver, base_url, 0, 3)
+    quiz_before = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
+    word_id_before = quiz_before.get_attribute("data-word-id")
+    
+    driver.refresh()
+    
+    quiz_after = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
+    word_id_after = quiz_after.get_attribute("data-word-id")
+    assert word_id_before == word_id_after, (
+        f"Quiz did not persist after refresh: before={word_id_before}, after={word_id_after}"
+    )
+    
+    solve_quizzes(driver, base_url, 3, 0)
+    quiz_before2 = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
+    word_id_before2 = quiz_before2.get_attribute("data-word-id")
+    
+    driver.refresh()
+    
+    quiz_after2 = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
+    word_id_after2 = quiz_after2.get_attribute("data-word-id")
+    assert word_id_before2 == word_id_after2, (
+        f"Quiz did not persist after refresh: before={word_id_before2}, after={word_id_after2}"
+    )

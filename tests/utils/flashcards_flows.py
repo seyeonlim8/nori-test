@@ -160,23 +160,16 @@ def mark_all_flashcards_O_and_accept_alert(driver):
     
     modal_msg = None
     while True:
+        o_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(O_BTN))
+        o_btn.click()
+        
         try:
-            vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
-            word_id = int(vocab.get_attribute("data-word-id"))
-            o_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(O_BTN))
-            o_btn.click()
-            
-            try:
-                alert = WebDriverWait(driver, 1).until(EC.alert_is_present())
-                modal_msg = alert.text
-                alert.accept()
-                break
-            except TimeoutException:
-                WebDriverWait(driver, 5).until(
-                    lambda d: d.find_element(*VOCAB).get_attribute("data-word-id") != str(word_id)
-                )
-        except TimeoutException:
+            alert = WebDriverWait(driver, 1).until(EC.alert_is_present())
+            modal_msg = alert.text
+            alert.accept()
             break
+        except TimeoutException:
+            continue
         
     return modal_msg
 

@@ -11,6 +11,7 @@ from tests.utils.db_client import get_study_progress, get_word_from_word_id
 STUDY_BTN = (By.CSS_SELECTOR, "[data-testid='study-btn']")
 QZ_BTN = (By.CSS_SELECTOR, "[data-testid='quiz-btn']")
 QUIZ = (By.CSS_SELECTOR, "[data-testid='question-box']")
+PROG_CNT = (By.CSS_SELECTOR, "[data-testid='progress-counter']")
 
 def login_and_open_quiz_page_with_level_reset(driver, base_url, email, password, level, type):
     """Log in, reset quiz progress for the given level/type, and open the quiz page."""
@@ -160,7 +161,7 @@ def wait_for_quiz_advance(driver, old_word_id, timeout=5):
         "Quiz did not advance"
     )
 
-def enter_review_mode(driver, num_of_correct, num_of_incorrect):
+def enter_review_mode(driver, base_url, type, num_of_correct, num_of_incorrect):
     """Complete the requested mix of quizzes so the session enters review mode."""
     
     alert_poll_seconds = 1
@@ -169,14 +170,14 @@ def enter_review_mode(driver, num_of_correct, num_of_incorrect):
             EC.presence_of_element_located(QUIZ)
         )
         current_word_id = question.get_attribute("data-word-id")
-        click_correct_quiz_answer(driver)
+        click_correct_quiz_answer(driver, base_url, type)
         wait_for_quiz_advance(driver, current_word_id)
     for _ in range(num_of_incorrect):
         question = WebDriverWait(driver, 5).until(
             EC.presence_of_element_located(QUIZ)
         )
         current_word_id = question.get_attribute("data-word-id")
-        click_incorrect_quiz_answer(driver)
+        click_incorrect_quiz_answer(driver, base_url, type)
         try:
             alert = WebDriverWait(driver, alert_poll_seconds).until(EC.alert_is_present())
         except TimeoutException:
@@ -185,3 +186,76 @@ def enter_review_mode(driver, num_of_correct, num_of_incorrect):
             alert.accept()
             return
     raise AssertionError("Failed to trigger quiz review mode with the requested incorrect answers.")
+
+def dismiss_review_mode_modal(driver, base_url, type, num_of_correct, num_of_incorrect):
+    
+    alert_poll_seconds = 1
+    for _ in range(num_of_correct):
+        question = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located(QUIZ)
+        )
+        current_word_id = question.get_attribute("data-word-id")
+        click_correct_quiz_answer(driver, base_url, type)
+        wait_for_quiz_advance(driver, current_word_id)
+    for _ in range(num_of_incorrect):
+        question = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located(QUIZ)
+        )
+        current_word_id = question.get_attribute("data-word-id")
+        click_incorrect_quiz_answer(driver, base_url, type)
+        try:
+            alert = WebDriverWait(driver, alert_poll_seconds).until(EC.alert_is_present())
+        except TimeoutException:
+            wait_for_quiz_advance(driver, current_word_id)
+        else:
+            alert.dismiss()
+            return
+    raise AssertionError("Failed to trigger review mode modal with the requested incorrect answers.")
+
+def answer_all_quizzes_correctly_and_accept_alert(driver, base_url, type):
+    
+    modal_msg = None
+    while True:
+        question = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located(QUIZ)
+        )
+        current_word_id = question.get_attribute("data-word-id")
+        click_correct_quiz_answer(driver, base_url, type)
+        
+        try:
+            alert = WebDriverWait(driver, 1).until(EC.alert_is_present())
+            modal_msg = alert.text
+            alert.accept()
+            break
+        except TimeoutException:
+            wait_for_quiz_advance(driver, current_word_id)
+    
+    return modal_msg
+
+def solve_quizzes(driver, base_url, num_of_correct, num_of_incorrect):
+    
+    for _ in range(num_of_correct):
+        question = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located(QUIZ)
+        )
+        current_word_id = question.get_attribute("data-word-id")
+        click_correct_quiz_answer(driver, base_url, type)
+        wait_for_quiz_advance(driver, current_word_id)
+    for _ in range(num_of_incorrect):
+        question = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located(QUIZ)
+        )
+        current_word_id = question.get_attribute("data-word-id")
+        click_incorrect_quiz_answer(driver, base_url, type)
+        wait_for_quiz_advance(driver, current_word_id)
+
+def reset_quiz_level_progress(driver, base_url, level, type):
+    
+    cookies = get_auth_cookies(driver)
+    r = requests.post(
+        f"{base_url}/api/study-progress/reset",
+        params={"type": f"quiz-{type}", "level": level},
+        cookies=cookies,
+        timeout=5,
+    )
+    r.raise_for_status()

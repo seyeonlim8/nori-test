@@ -94,7 +94,7 @@ def input_incorrect_fill_answer(driver):
     )
     submit_btn.click()
     
-def input_correct_fill_answer_from_db(driver, base_url):
+def input_correct_fill_answer_from_db_and_submit(driver, base_url):
     fill_box = WebDriverWait(driver, 5).until(
         EC.presence_of_element_located(FILL_BOX)
     )
@@ -112,6 +112,8 @@ def input_correct_fill_answer_from_db(driver, base_url):
         EC.element_to_be_clickable(SUBMIT_BTN)
     )
     submit_btn.click()
+    
+    return answer
     
 def wait_for_completion_state(base_url, word_id, cookies, expected, level, timeout=5):
     """Poll the study progress API until the word's completion state matches the expected value."""

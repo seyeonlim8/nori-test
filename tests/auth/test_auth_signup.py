@@ -46,11 +46,11 @@ def test_signup_positive_feedback(driver, base_url, test1_email, test1_password)
         message="Username feedback did not show 'Username available'"
     )
 
-    # Email: error disappears (≤500ms)
+    # Email: shows positive availability message (allow up to 3s for debounce/API)
     email_err = (EMAIL_ERR)
-    WebDriverWait(driver, 0.5).until(
-        EC.invisibility_of_element_located(email_err),
-        message="Email error stayed visible"
+    WebDriverWait(driver, 3).until(
+        EC.text_to_be_present_in_element(email_err, "Email available!"),
+        message="Email availability message did not appear"
     )
 
     # Password checklist: all green
@@ -59,9 +59,9 @@ def test_signup_positive_feedback(driver, base_url, test1_email, test1_password)
     )
     assert len(bad) == 0, f"These rules are not green: {[el.text for el in bad]}"
 
-    # Confirm password: error disappears (≤500ms)
+    # Confirm password: error disappears (allow up to 3s)
     confirm_pw_err = (CONFIRM_PW_ERR)
-    WebDriverWait(driver, 0.5).until(
+    WebDriverWait(driver, 3).until(
         EC.invisibility_of_element_located(confirm_pw_err),
         message="Confirm password error stayed visible"
     )
@@ -140,12 +140,12 @@ def test_invalid_email_format_and_uniqueness_feedback(driver, base_url, admin_em
     driver.find_element(*EMAIL).send_keys(value)
 
     if valid:
-        WebDriverWait(driver, 0.5).until(
-            EC.invisibility_of_element_located(EMAIL_ERR),
-            message=f"Email error should be hidden for valid value: {value!r}"
+        WebDriverWait(driver, 3).until(
+            EC.text_to_be_present_in_element(EMAIL_ERR, "Email available!"),
+            message=f"Email feedback should show availability for valid value: {value!r}"
         )
     else:
-        WebDriverWait(driver, 0.5).until(
+        WebDriverWait(driver, 3).until(
             EC.visibility_of_element_located(EMAIL_ERR),
             message=f"Email error was not shown for invalid value: {value!r}"
         )

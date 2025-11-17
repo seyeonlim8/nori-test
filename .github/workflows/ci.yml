@@ -2,19 +2,20 @@ name: Tests
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   tests:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+
     env:
-      NORI_BASE_URL: ${{ secrets.NORI_BASE_URL }}
+      NORI_BASE_URL: http://localhost:3000
       ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
       ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
       TEST1_EMAIL: ${{ secrets.TEST1_EMAIL }}
@@ -33,8 +34,14 @@ jobs:
           --health-retries=5
 
     steps:
-      - name: Checkout repository
+      - name: Checkout test repo
         uses: actions/checkout@v4
+
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          repository: seyeonlim8/NORI
+          path: nori-app
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -44,27 +51,27 @@ jobs:
 
       - name: Install Node dependencies
         working-directory: ./nori-app
-        run: npm ci
+        run: |
+          # lockfile(package-lock.json)가 있으면 npm ci, 없으면 npm install
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
       - name: Start nori-app dev server
         working-directory: ./nori-app
         run: |
-          npm run dev -- --port 3000 > /tmp/nori-app.log 2>&1 &
-          echo $! > /tmp/nori-app.pid
+          npm run dev -- --port 3000 &
 
-      - name: Wait for app
-        run: |
           for i in {1..30}; do
             echo "Waiting for app... ($i)"
             if curl -sSf http://localhost:3000 >/dev/null; then
               echo "App is up!"
-              exit 0
+              break
             fi
             sleep 2
           done
-          echo "App failed to start"
-          cat /tmp/nori-app.log || true
-          exit 1
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -87,10 +94,3 @@ jobs:
 
       - name: Run pytest
         run: pytest
-
-      - name: Stop nori-app dev server
-        if: always()
-        run: |
-          if [ -f /tmp/nori-app.pid ]; then
-            kill $(cat /tmp/nori-app.pid) || true
-          fi

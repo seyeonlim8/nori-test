@@ -7,10 +7,21 @@ on:
   pull_request:
     branches:
       - main
-
+  workflow_dispatch:
 jobs:
   tests:
     runs-on: ubuntu-latest
+    services:
+      mailhog:
+        image: mailhog/mailhog:v1.0.1
+        ports:
+          - 1025:1025
+          - 8025:8025
+        options: >-
+          --health-cmd="wget --spider http://localhost:8025/api/v2/messages || exit 1"
+          --health-interval=5s
+          --health-timeout=2s
+          --health-retries=5
 
     steps:
       - name: Checkout repository
@@ -26,6 +37,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Restart Mailhog service
+        run: |
+          docker restart ${{ job.services.mailhog.id }}
+          for i in {1..10}; do
+            curl -sSf http://localhost:8025/api/v2/messages >/dev/null && break
+            sleep 1
+          done
 
       - name: Run pytest
         run: pytest

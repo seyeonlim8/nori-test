@@ -42,6 +42,7 @@ jobs:
         with:
           repository: seyeonlim8/NORI
           path: nori-app
+          token: ${{ secrets.APP_REPO_TOKEN }}
 
       - name: Set up Node
         uses: actions/setup-node@v4

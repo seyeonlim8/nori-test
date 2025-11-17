@@ -48,12 +48,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
 
       - name: Install Node dependencies
         working-directory: ./nori-app
         run: |
-          # lockfile(package-lock.json)가 있으면 npm ci, 없으면 npm install
           if [ -f package-lock.json ]; then
             npm ci
           else

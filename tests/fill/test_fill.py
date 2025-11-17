@@ -5,9 +5,10 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 from tests.utils.auth_flows import get_auth_cookies
 from tests.utils.db_client import get_study_progress
-from tests.utils.fill_flows import enter_review_mode, input_correct_fill_answer_from_db, input_fill_answer, input_incorrect_fill_answer, open_fill_page_with_level_reset, wait_for_completion_state, wait_stays_disabled_until_advance
+from tests.utils.fill_flows import enter_review_mode, input_correct_fill_answer_from_db_and_submit, input_fill_answer, input_incorrect_fill_answer, open_fill_page_with_level_reset, wait_for_completion_state, wait_for_fill_advance, wait_stays_disabled_until_advance
 
 FILL_BOX = (By.CSS_SELECTOR, "[data-testid='fill-box']")
+FILL_ANS = (By.CSS_SELECTOR, "[data-testid='fill-answer']")
 SUBMIT_BTN = (By.CSS_SELECTOR, "[data-testid='submit-btn']")
 ENG_MEANING = (By.CSS_SELECTOR, "[data-testid='english-meaning']")
 
@@ -21,7 +22,7 @@ def test_correct_answer_marks_fill_as_completed(driver, base_url, admin_email, a
     question = WebDriverWait(driver, 5).until(
         EC.presence_of_element_located(FILL_BOX)
     )
-    input_correct_fill_answer_from_db(driver, base_url)
+    input_correct_fill_answer_from_db_and_submit(driver, base_url)
     
     # Assert DB state
     word_id = question.get_attribute("data-word-id")
@@ -63,7 +64,7 @@ def test_submit_button_disabled_until_next_sentence(driver, base_url, admin_emai
 
     question = WebDriverWait(driver, 5).until(EC.presence_of_element_located(FILL_BOX))
     word_id = question.get_attribute("data-word-id")
-    input_correct_fill_answer_from_db(driver, base_url)
+    input_correct_fill_answer_from_db_and_submit(driver, base_url)
 
     # Disabled promptly
     WebDriverWait(driver, 2).until(
@@ -80,6 +81,29 @@ def test_submit_button_disabled_until_next_sentence(driver, base_url, admin_emai
         "Submit button still disabled after next flashcard loaded"
     )
     
+@pytest.mark.tcid("TC-FILL-005")
+@pytest.mark.fill
+def test_correct_fill_answer_feedback(driver, base_url, admin_email, admin_password):
+    
+    level = "n2"
+    open_fill_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+
+    question_before = WebDriverWait(driver, 5).until(EC.presence_of_element_located(FILL_BOX))
+    word_id_before = question_before.get_attribute("data-word-id")
+    answer = input_correct_fill_answer_from_db_and_submit(driver, base_url)
+    answer_span = WebDriverWait(driver, 5).until(EC.presence_of_element_located(FILL_ANS))    
+    assert answer in WebDriverWait(driver, 5).until(EC.presence_of_element_located(FILL_BOX)).text, "Blank not replaced with answer"
+    assert answer_span.text == answer, "Answer in sentence does not match the correct answer"
+    assert "text-green-500" in answer_span.get_attribute("class"), "Answer in sentence is not green"
+    
+    submit_btn = WebDriverWait(driver, 5).until(EC.presence_of_element_located(SUBMIT_BTN))
+    assert "Correct!" in submit_btn.text, f"Submit button text did not change. Current text: {submit_btn.text}"
+    
+    wait_for_fill_advance(driver, word_id_before)
+    question_after = WebDriverWait(driver, 5).until(EC.presence_of_element_located(FILL_BOX))
+    word_id_after = question_after.get_attribute("data-word-id")
+    assert word_id_before != word_id_after, "Question did not advance"
+
 @pytest.mark.tcid("TC-FILL-012")
 @pytest.mark.fill
 def test_half_width_katakana_answer_accepted(driver, base_url, admin_email, admin_password):
@@ -124,7 +148,7 @@ def test_review_mode_excludes_completed_sentence(driver, base_url, admin_email, 
             quiz = WebDriverWait(driver, 5).until(EC.presence_of_element_located(FILL_BOX))
             word_id = int(quiz.get_attribute("data-word-id"))
             displayed_set.add(word_id)
-            input_correct_fill_answer_from_db(driver, base_url)
+            input_correct_fill_answer_from_db_and_submit(driver, base_url)
 
             try:
                 WebDriverWait(driver, 1.5).until(EC.alert_is_present())

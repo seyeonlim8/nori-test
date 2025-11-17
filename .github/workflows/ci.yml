@@ -11,6 +11,12 @@ on:
 jobs:
   tests:
     runs-on: ubuntu-latest
+    env:
+      NORI_BASE_URL: ${{ secrets.NORI_BASE_URL }}
+      ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      TEST1_EMAIL: ${{ secrets.TEST1_EMAIL }}
+      TEST1_PASSWORD: ${{ secrets.TEST1_PASSWORD }}
     services:
       mailhog:
         image: mailhog/mailhog:v1.0.1

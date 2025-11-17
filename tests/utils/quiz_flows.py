@@ -13,6 +13,37 @@ QZ_BTN = (By.CSS_SELECTOR, "[data-testid='quiz-btn']")
 QUIZ = (By.CSS_SELECTOR, "[data-testid='question-box']")
 PROG_CNT = (By.CSS_SELECTOR, "[data-testid='progress-counter']")
 
+def login_and_open_quiz_page(driver, base_url, email, password, level, type):
+    """Log in and open the quiz page."""
+    
+    login(driver, base_url, email, password)
+    WebDriverWait(driver, 5).until(
+        EC.url_to_be(f"{base_url}/"),
+        "Did not navigate to main page"
+    )
+
+    study_btn = WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located(STUDY_BTN),
+        "Study button is not found"
+    )
+    ActionChains(driver).move_to_element(study_btn).perform()
+    quiz_btn = WebDriverWait(driver, 5).until(
+        EC.element_to_be_clickable(QZ_BTN),
+        "Quiz button is not clickable"
+    )
+    quiz_btn.click()
+    level_btn = WebDriverWait(driver, 5).until(
+        EC.element_to_be_clickable((By.CSS_SELECTOR, f"[data-testid='level-btn-{level.lower()}']")),
+        f"{level.upper()} button is not clickable"
+    )
+    level_btn.click()
+    
+    type_btn = WebDriverWait(driver, 5).until(
+        EC.element_to_be_clickable((By.CSS_SELECTOR, f"[data-testid='{type.lower()}-btn']")),
+        f"{level.upper()} button is not clickable"
+    )
+    type_btn.click()
+    
 def login_and_open_quiz_page_with_level_reset(driver, base_url, email, password, level, type):
     """Log in, reset quiz progress for the given level/type, and open the quiz page."""
     

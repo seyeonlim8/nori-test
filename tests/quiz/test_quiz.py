@@ -4,9 +4,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import TimeoutException
-from tests.utils.auth_flows import get_auth_cookies
+from tests.utils.auth_flows import get_auth_cookies, logout
 from tests.utils.db_client import get_study_progress, get_word_from_word_id
-from tests.utils.quiz_flows import answer_all_quizzes_correctly_and_accept_alert, click_correct_quiz_answer, click_incorrect_quiz_answer, dismiss_review_mode_modal, enter_review_mode, get_correct_quiz_answer_element, login_and_open_quiz_page_with_level_reset, login_and_open_quiz_type_selection_page, reset_quiz_level_progress, solve_quizzes, wait_for_completion_state, wait_for_quiz_advance, wait_stays_disabled_until_advance
+from tests.utils.quiz_flows import answer_all_quizzes_correctly_and_accept_alert, click_correct_quiz_answer, click_incorrect_quiz_answer, dismiss_review_mode_modal, enter_review_mode, get_correct_quiz_answer_element, login_and_open_quiz_page, login_and_open_quiz_page_with_level_reset, login_and_open_quiz_type_selection_page, reset_quiz_level_progress, solve_quizzes, wait_for_completion_state, wait_for_quiz_advance, wait_stays_disabled_until_advance
 
 STUDY_BTN = (By.CSS_SELECTOR, "[data-testid='study-btn']")
 QUIZ = (By.CSS_SELECTOR, "[data-testid='question-box']")
@@ -22,6 +22,7 @@ PROG_CNT = (By.CSS_SELECTOR, "[data-testid='progress-counter']")
 @pytest.mark.tcid("TC-QZ-001")
 @pytest.mark.quiz
 def test_quiz_type_selection_page_loads(driver, base_url, admin_email, admin_password):
+    """Load quiz type selection page and verify both type buttons render with correct Japanese labels."""
     
     level = "n2"
     login_and_open_quiz_type_selection_page(driver, base_url, admin_email, admin_password, level)
@@ -146,6 +147,7 @@ def test_incorrect_answer_marks_quiz_as_incomplete(driver, base_url, admin_email
 @pytest.mark.tcid("TC-QZ-006")
 @pytest.mark.quiz
 def test_kanji_to_furigana_quiz_displays_correct_format(driver, base_url, admin_email, admin_password):
+    """Verify Kanji-to-Furigana quiz shows a Kanji question and four unique Furigana answer choices including the correct answer."""
     
     level = "TEST"
     type = "kanji-to-furigana"
@@ -178,6 +180,7 @@ def test_kanji_to_furigana_quiz_displays_correct_format(driver, base_url, admin_
 @pytest.mark.tcid("TC-QZ-007")
 @pytest.mark.quiz
 def test_furigana_to_kanji_quiz_displays_correct_format(driver, base_url, admin_email, admin_password):
+    """Verify Furigana-to-Kanji quiz shows a Furigana question and four unique Kanji answer choices including the correct answer."""
     
     level = "TEST"
     type = "furigana-to-kanji"
@@ -210,6 +213,7 @@ def test_furigana_to_kanji_quiz_displays_correct_format(driver, base_url, admin_
 @pytest.mark.tcid("TC-QZ-008")
 @pytest.mark.quiz
 def test_answer_quiz_with_mouse_click(driver, base_url, admin_email, admin_password):
+    """Click first answer with mouse and confirm the quiz advances to a new word ID."""
     
     level = "TEST"
     type = "kanji-to-furigana"
@@ -230,6 +234,7 @@ def test_answer_quiz_with_mouse_click(driver, base_url, admin_email, admin_passw
 @pytest.mark.tcid("TC-QZ-009")
 @pytest.mark.quiz
 def test_answer_quiz_with_keyboard_input(driver, base_url, admin_email, admin_password):
+    """Press number keys 1–4 to select answers; assert each key triggers selection and advances to next quiz item."""
     
     level = "TEST"
     type = "furigana-to-kanji"
@@ -248,6 +253,7 @@ def test_answer_quiz_with_keyboard_input(driver, base_url, admin_email, admin_pa
 @pytest.mark.tcid("TC-QZ-010")
 @pytest.mark.quiz
 def test_correct_quiz_answer_color_feedback(driver, base_url, admin_email, admin_password):
+    """After selecting the correct answer, its button turns green and the other answers dim to orange."""
     
     level = "TEST"
     type = "kanji-to-furigana"
@@ -273,6 +279,7 @@ def test_correct_quiz_answer_color_feedback(driver, base_url, admin_email, admin
 @pytest.mark.tcid("TC-QZ-011")
 @pytest.mark.quiz
 def test_incorrect_quiz_answer_color_feedback(driver, base_url, admin_email, admin_password):
+    """After selecting an incorrect answer, that button turns red, the correct one turns green, and remaining answers dim to orange."""
     
     level = "TEST"
     type = "furigana-to-kanji"
@@ -338,6 +345,7 @@ def test_answer_buttons_disabled_until_next_quiz(driver, base_url, admin_email, 
 @pytest.mark.tcid("TC-QZ-013")
 @pytest.mark.quiz
 def test_number_keys_select_corresponding_answers(driver, base_url, admin_email, admin_password):
+    """Validate numeric keyboard shortcuts (1–4) select the corresponding answer button and show selection color feedback before advancing."""
     
     level = "TEST"
     type = "furigana-to-kanji"
@@ -390,6 +398,7 @@ def test_quiz_review_mode_modal_appears(driver, base_url, admin_email, admin_pas
 @pytest.mark.tcid("TC-QZ-018")
 @pytest.mark.quiz
 def test_accepting_review_modal_starts_quiz_review_mode(driver, base_url, admin_email, admin_password):
+    """Enter review mode by triggering modal; accept it and verify progress counter indicates '(Review Mode)'."""
     
     level = "TEST"
     type = "furigana-to-kanji"
@@ -405,6 +414,7 @@ def test_accepting_review_modal_starts_quiz_review_mode(driver, base_url, admin_
 @pytest.mark.tcid("TC-QZ-019")
 @pytest.mark.quiz
 def test_cancel_review_modal_redirects_and_resets_quiz_progress(driver, base_url, admin_email, admin_password):
+    """Dismiss review mode modal (Cancel) and assert redirect to level selection plus cleared progress for that level/type."""
     
     level = "TEST"
     type = "furigana-to-kanji"
@@ -468,6 +478,7 @@ def test_review_mode_excludes_completed_quiz(driver, base_url, admin_email, admi
 @pytest.mark.tcid("TC-QZ-021")
 @pytest.mark.quiz
 def test_review_mode_label_displayed_in_progress_counter(driver, base_url, admin_email, admin_password):
+    """Ensure progress counter text contains '(Review Mode)' after entering review mode."""
     
     level = "TEST"
     type = "kanji-to-furigana"
@@ -505,6 +516,7 @@ def test_quiz_review_mode_progress_counter(driver, base_url, admin_email, admin_
 @pytest.mark.tcid("TC-QZ-024")
 @pytest.mark.quiz
 def test_quiz_progress_reset_modal_message(driver, base_url, admin_email, admin_password):
+    """Complete all quizzes; accept completion alert and confirm modal message contains reset confirmation text."""
     
     level = "TEST"
     type = "kanji-to-furigana"
@@ -572,7 +584,7 @@ def test_quiz_reset_scope_limited_to_current_level(driver, base_url, admin_email
 @pytest.mark.tcid("TC-QZ-029")
 @pytest.mark.quiz
 def test_quiz_position_persists_after_page_refresh(driver, base_url, admin_email, admin_password):
-    """Verify the same flashcard remains selected after a browser refresh."""
+    """Verify the same quiz loads after a browser refresh."""
     
     level = "n2"
     type = "furigana-to-kanji"
@@ -601,3 +613,148 @@ def test_quiz_position_persists_after_page_refresh(driver, base_url, admin_email
     assert word_id_before2 == word_id_after2, (
         f"Quiz did not persist after refresh: before={word_id_before2}, after={word_id_after2}"
     )
+    
+@pytest.mark.tcid("TC-QZ-030")
+@pytest.mark.quiz
+def test_quiz_position_persists_after_logout_login(driver, base_url, admin_email, admin_password):
+    """Verify the same quiz loads after logout then login."""
+    
+    level = "n1"
+    type = "furigana-to-kanji"
+    login_and_open_quiz_page_with_level_reset(driver, base_url, admin_email, admin_password, level, type)
+    
+    solve_quizzes(driver, base_url, 3, 0)
+    quiz_before = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
+    word_id_before = quiz_before.get_attribute("data-word-id")
+    
+    logout(driver)
+    login_and_open_quiz_page(driver, base_url, admin_email, admin_password, level, type)
+    
+    quiz_after = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
+    word_id_after = quiz_after.get_attribute("data-word-id")
+    assert word_id_before == word_id_after, (
+        f"Quiz did not persist after re-login: before={word_id_before}, after={word_id_after}"
+    )
+    
+    solve_quizzes(driver, base_url, 0, 3)
+    quiz_before2 = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
+    word_id_before2 = quiz_before2.get_attribute("data-word-id")
+    
+    driver.refresh()
+    
+    quiz_after2 = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
+    word_id_after2 = quiz_after2.get_attribute("data-word-id")
+    assert word_id_before == word_id_after, (
+        f"Quiz did not persist after re-login: before={word_id_before2}, after={word_id_after2}"
+    )
+    
+@pytest.mark.tcid("TC-QZ-031")
+@pytest.mark.quiz
+def test_quiz_position_persists_after_reopening_browser_or_across_devices(driver_factory, base_url, admin_email, admin_password):
+    """Verify the same quiz loads after closing and reopening the browser."""
+    
+    level = "n2"
+    type = "kanji-to-furigana"
+    
+    # First browser session
+    driver1 = driver_factory()
+    login_and_open_quiz_page_with_level_reset(driver1, base_url, admin_email, admin_password, level, type)
+    quiz_before = WebDriverWait(driver1, 5).until(EC.presence_of_element_located(QUIZ))
+    word_id_before = quiz_before.get_attribute("data-word-id")
+    driver1.quit()
+    
+    # Second browser session
+    driver2 = driver_factory()
+    login_and_open_quiz_page(driver2, base_url, admin_email, admin_password, level, type)
+    quiz_after = WebDriverWait(driver2, 5).until(EC.presence_of_element_located(QUIZ))
+    word_id_after = quiz_after.get_attribute("data-word-id")
+    
+    assert word_id_before == word_id_after, (
+        f"Quiz did not persist after closing and reopening browser: "
+        f"before={word_id_before}, after={word_id_after}"
+    )
+    driver2.quit()
+   
+@pytest.mark.tcid("TC-QZ-032")
+@pytest.mark.quiz 
+def test_quiz_progress_persists_on_reenter_normal_mode(driver, base_url, admin_email, admin_password):
+    """Verify completed quizzes remain persisted after leaving and re-entering Quiz pgae in Normal mode."""
+    
+    level = "n2"
+    type = "furigana-to-kanji"
+    login_and_open_quiz_page_with_level_reset(driver, base_url, admin_email, admin_password, level, type)
+    progress_counter = WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
+    assert "Review Mode" not in progress_counter.text, "Should be in Normal mode, not Review mode"
+    
+    solve_quizzes(driver, base_url, 3, 2)
+        
+    cookies = get_auth_cookies(driver)
+    progress_before = get_study_progress(base_url, cookies, f"quiz-{type}", level)
+    completed_before = {p["wordId"] for p in progress_before if p["completed"]}
+    quiz_before = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
+    word_id_before_exit = quiz_before.get_attribute("data-word-id")
+    
+    # Exit and reenter quiz page
+    driver.get(f"{base_url}")
+    driver.get(f"{base_url}/study/quiz/{level}/{type}")
+    progress_counter = WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
+    assert "Review Mode" not in progress_counter.text, "Should be in Normal Mode, not Review Mode"
+    
+    progress_after = get_study_progress(base_url, cookies, f"quiz-{type}", level)
+    completed_after = {p["wordId"] for p in progress_after if p["completed"]}
+    quiz_after = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
+    word_id_after_reentry = quiz_after.get_attribute("data-word-id")
+        
+    # Assert persistence
+    assert completed_after == completed_before, (
+        "Progress did not persist after re-entering quiz: "
+        f"before exit={len(completed_before)}, after re-enter={len(completed_after)}"
+    )
+    assert word_id_before_exit == word_id_after_reentry, (
+        "Normal mode did not resume on the same quiz: "
+        f"before exit={word_id_before_exit}, after re-enter={word_id_after_reentry}"
+    )    
+    
+@pytest.mark.tcid("TC-QZ-033")
+@pytest.mark.quiz 
+def test_quiz_progress_persists_on_reenter_review_mode(driver, base_url, admin_email, admin_password):
+    """Verify completed words remain persisted after leaving and re-entering Quiz page in Review mode."""
+    
+    level = "TEST"
+    type = "furigana-to-kanji"
+    login_and_open_quiz_page_with_level_reset(driver, base_url, admin_email, admin_password, level, type)
+    
+    # Complete a cycle to enter Review mode - test set length is 5.
+    enter_review_mode(driver, base_url, type, 1, 4) 
+
+    progress_counter = WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
+    assert "Review Mode" in progress_counter.text, "Should be in Review mode, not Normal mode"
+    
+    solve_quizzes(driver, base_url, 2, 0)
+        
+    cookies = get_auth_cookies(driver)
+    progress_before = get_study_progress(base_url, cookies, f"quiz-{type}", level)
+    completed_before = {p["wordId"] for p in progress_before if p["completed"]}
+    quiz_before = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
+    word_id_before_exit = quiz_before.get_attribute("data-word-id")
+    
+    # Exit and reenter quiz page
+    driver.get(f"{base_url}")
+    driver.get(f"{base_url}/study/quiz/{level}/{type}")
+    progress_counter = WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
+    assert "Review Mode" in progress_counter.text, "Should be in Review Mode, not Normal Mode"
+    
+    progress_after = get_study_progress(base_url, cookies, f"quiz-{type}", level)
+    completed_after = {p["wordId"] for p in progress_after if p["completed"]}
+    quiz_after = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
+    word_id_after_reentry = quiz_after.get_attribute("data-word-id")
+    
+    # Assert persistence
+    assert completed_after == completed_before, (
+        "Progress did not persist after re-entering quiz: "
+        f"before exit={len(completed_before)}, after re-enter={len(completed_after)}"
+    )
+    assert word_id_before_exit == word_id_after_reentry, (
+        "Normal mode did not resume on the same quiz: "
+        f"before exit={word_id_before_exit}, after re-enter={word_id_after_reentry}"
+    )    

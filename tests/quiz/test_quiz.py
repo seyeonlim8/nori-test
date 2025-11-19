@@ -18,6 +18,7 @@ QZ_BTN = (By.CSS_SELECTOR, "[data-testid='quiz-btn']")
 K_TO_F_BTN = (By.CSS_SELECTOR, "[data-testid='kanji-to-furigana-btn']")
 F_TO_K_BTN = (By.CSS_SELECTOR, "[data-testid='furigana-to-kanji-btn']")
 PROG_CNT = (By.CSS_SELECTOR, "[data-testid='progress-counter']")
+PROG_BAR = (By.CSS_SELECTOR, "[data-testid='progress-bar-inner']")
 
 @pytest.mark.tcid("TC-QZ-001")
 @pytest.mark.quiz
@@ -386,12 +387,11 @@ def test_quiz_review_mode_modal_appears(driver, base_url, admin_email, admin_pas
             alert = WebDriverWait(driver, alert_poll_seconds).until(EC.alert_is_present())
             alert_msg = alert.text
             assert "5 words need review" in alert_msg
-        except TimeoutException:
-            wait_for_quiz_advance(driver, old_word_id)
-        else:
             modal_seen = True
             alert.accept()
             break
+        except TimeoutException:
+            wait_for_quiz_advance(driver, old_word_id)
     
     assert modal_seen, "Review modal did not appear after answering all quizzes."
     
@@ -477,7 +477,7 @@ def test_review_mode_excludes_completed_quiz(driver, base_url, admin_email, admi
     
 @pytest.mark.tcid("TC-QZ-021")
 @pytest.mark.quiz
-def test_review_mode_label_displayed_in_progress_counter(driver, base_url, admin_email, admin_password):
+def test_quiz_review_mode_label_displayed_in_progress_counter(driver, base_url, admin_email, admin_password):
     """Ensure progress counter text contains '(Review Mode)' after entering review mode."""
     
     level = "TEST"
@@ -539,6 +539,10 @@ def test_quiz_progress_counter_after_reset(driver, base_url, admin_email, admin_
     progress_counter = WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
     current, total = [int(part.strip()) for part in progress_counter.text.split("/")[:2]]
     assert current == 0 and total == 5, f"Progress counter is not reset to 0. Current: {progress_counter.text}"
+    
+    progress_bar = WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_BAR))
+    style = progress_bar.get_attribute("style")
+    assert "width: 0%" in style, f"Unexpected style: {style!r}"
     
 @pytest.mark.tcid("TC-QZ-026")
 @pytest.mark.quiz
@@ -640,7 +644,8 @@ def test_quiz_position_persists_after_logout_login(driver, base_url, admin_email
     quiz_before2 = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
     word_id_before2 = quiz_before2.get_attribute("data-word-id")
     
-    driver.refresh()
+    logout(driver)
+    login_and_open_quiz_page(driver, base_url, admin_email, admin_password, level, type)
     
     quiz_after2 = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
     word_id_after2 = quiz_after2.get_attribute("data-word-id")
@@ -659,6 +664,7 @@ def test_quiz_position_persists_after_reopening_browser_or_across_devices(driver
     # First browser session
     driver1 = driver_factory()
     login_and_open_quiz_page_with_level_reset(driver1, base_url, admin_email, admin_password, level, type)
+    solve_quizzes(driver1, base_url, 3, 3)
     quiz_before = WebDriverWait(driver1, 5).until(EC.presence_of_element_located(QUIZ))
     word_id_before = quiz_before.get_attribute("data-word-id")
     driver1.quit()
@@ -678,7 +684,7 @@ def test_quiz_position_persists_after_reopening_browser_or_across_devices(driver
 @pytest.mark.tcid("TC-QZ-032")
 @pytest.mark.quiz 
 def test_quiz_progress_persists_on_reenter_normal_mode(driver, base_url, admin_email, admin_password):
-    """Verify completed quizzes remain persisted after leaving and re-entering Quiz pgae in Normal mode."""
+    """Verify completed quizzes remain persisted after leaving and re-entering Quiz page in Normal mode."""
     
     level = "n2"
     type = "furigana-to-kanji"

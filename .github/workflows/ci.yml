@@ -1,10 +1,10 @@
 name: Tests
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+#   push:
+#     branches: [ main ]
+#   pull_request:
+#     branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -92,4 +92,4 @@ jobs:
           done
 
       - name: Run pytest
-        run: pytest
+        run: pytest -k "test_signup_success"

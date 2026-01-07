@@ -2,7 +2,7 @@
 
 ## Overview
 
-This repository contains the automated testing framework for **Nori**, a Japanese language learning web application focused on JLPT (Japanese Language Proficiency Test) vocabulary and kanji mastery.
+This repository contains the automated testing framework for **NORI**, a Japanese language learning web application focused on JLPT (Japanese Language Proficiency Test) vocabulary and kanji mastery.
 
 Nori helps learners prepare for the JLPT exams through interactive features including flashcards, quizzes, fill-in-the-blank exercises, and personalized learning paths. This test suite ensures the quality and reliability of these core features through comprehensive end-to-end testing.
 

@@ -50,8 +50,8 @@ This automated test suite provides comprehensive coverage of:
 
 ```
 nori-test/
-├── pytest.ini              # Pytest configuration and markers
-├── requirements.txt        # Python dependencies
+├── pytest.ini             # Pytest configuration and markers
+├── requirements.txt       # Python dependencies
 ├── README.md              # This file
 └── tests/
     ├── conftest.py        # Pytest fixtures and configuration

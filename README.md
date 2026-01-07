@@ -20,15 +20,13 @@ The application includes:
 ## Table of Contents
 
 - [Overview](#overview)
-- [About Nori](#about-nori)
+- [About NORI](#about-nori)
 - [Test Coverage](#test-coverage)
 - [Getting Started](#getting-started)
 - [Project Structure](#project-structure)
-- [Installation](#installation)
 - [Configuration](#configuration)
 - [Running Tests](#running-tests)
 - [Test Categories](#test-categories)
-- [Contributing](#contributing)
 
 ## Test Coverage
 

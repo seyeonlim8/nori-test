@@ -46,28 +46,6 @@ This automated test suite provides comprehensive coverage of:
 - **Fill Exercises**: Answer submission and validation
 - **Level Selection**: JLPT level choosing and progression
 
-### Quality Assurance
-
-- Integration tests across features
-- Non-functional requirements (NFR) testing
-- Database state verification
-- Email delivery testing via MailHog
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.8 or higher
-- Chrome/Firefox browser
-- Git
-
-Clone the repository:
-
-```bash
-git clone https://github.com/[your-org]/nori-test.git
-cd nori-test
-```
-
 ## Project Structure
 
 ```

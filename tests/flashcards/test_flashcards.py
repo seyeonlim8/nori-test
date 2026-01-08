@@ -16,8 +16,53 @@ VOCAB = (By.CSS_SELECTOR, "[data-testid='vocabulary']")
 FURIGANA = (By.CSS_SELECTOR, "[data-testid='furigana']")
 O_BTN = (By.CSS_SELECTOR, "[data-testid='o-btn']")
 X_BTN = (By.CSS_SELECTOR, "[data-testid='x-btn']")
+EX_BTN = (By.CSS_SELECTOR, "[data-testid='example-btn']")
+EX_SENTENCE = (By.CSS_SELECTOR, "[data-testid='ex-sentence']")
+MEANING_BTN = (By.CSS_SELECTOR, "[data-testid='meaning-btn']")
+MEANING = (By.CSS_SELECTOR, "[data-testid='meaning']")
 PROG_CNT = (By.CSS_SELECTOR, "[data-testid='progress-counter']")
 SUBJECT = "NORI Email Verification"
+EX_TRANSLATION = (By.CSS_SELECTOR, "[data-testid='ex-translation']")
+FAVORITE_BTN = (By.CSS_SELECTOR, "[data-testid='favorite-btn']")
+STAR_BTN = (By.CSS_SELECTOR, "[data-testid='star-btn']")
+FAVORITES_BTN = (By.CSS_SELECTOR, "[data-testid='level-btn-favorites']")
+STAR_FILLED = "★"
+STAR_EMPTY = "☆"
+
+def get_progress_counts(driver):
+    text = driver.find_element(*PROG_CNT).text.strip()
+    fraction = text.split("(", 1)[0]
+    current_str, total_str = [part.strip() for part in fraction.split("/", 1)]
+    return int(current_str), int(total_str), text
+
+def get_favorite_word_ids(base_url, cookies):
+    response = requests.get(
+        f"{base_url}/api/favorites",
+        cookies=cookies,
+        timeout=5,
+    )
+    response.raise_for_status()
+    return [int(word["id"]) for word in response.json()]
+
+def clear_favorites(base_url, cookies):
+    favorite_ids = get_favorite_word_ids(base_url, cookies)
+    for word_id in favorite_ids:
+        response = requests.post(
+            f"{base_url}/api/favorites",
+            json={"wordId": word_id},
+            cookies=cookies,
+            timeout=5,
+        )
+        response.raise_for_status()
+
+def wait_for_favorite_state(base_url, cookies, word_id, expected, timeout=10):
+    end_time = time.time() + timeout
+    while time.time() < end_time:
+        ids = get_favorite_word_ids(base_url, cookies)
+        if (word_id in ids) == expected:
+            return ids
+        time.sleep(0.5)
+    return get_favorite_word_ids(base_url, cookies)
 
 @pytest.mark.tcid("TC-FC-001")
 @pytest.mark.flashcards
@@ -221,6 +266,349 @@ def test_OX_button_hover_animation_triggers(driver, base_url, admin_email, admin
     w_after = get_width(x_btn)
     assert w_after > w_before * 1.05, "X button did not scale up on hover"
 
+@pytest.mark.tcid("TC-FC-008")
+@pytest.mark.flashcards
+def test_example_sentence_toggle_button(driver, base_url, admin_email, admin_password):
+    """Verify the 'Show example sentence' button toggles the example sentence on/off and button text changes."""
+
+    level = "n2"
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    example_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(EX_BTN))
+
+    WebDriverWait(driver, 2).until(
+        EC.invisibility_of_element_located(EX_SENTENCE),
+        "Example sentence should be hidden by default"
+    )
+    example_btn.click()
+    assert example_btn.text == "Hide example sentence", "Button text did not change"
+    
+    WebDriverWait(driver, 2).until(
+        EC.visibility_of_element_located(EX_SENTENCE),
+        "Example sentence did not toggle after first click"
+    )
+
+    example_btn.click()
+    assert example_btn.text == "See example sentence", "Button text did not change"
+    
+    WebDriverWait(driver, 2).until(
+        EC.invisibility_of_element_located(EX_SENTENCE),
+        "Example sentence did not toggle after second click"
+    )
+
+@pytest.mark.tcid("TC-FC-009")
+@pytest.mark.flashcards
+def test_meaning_toggle_button(driver, base_url, admin_email, admin_password):
+    """Verify 'Show meaning' button toggles furigana, meaning, and example translation on and off."""
+
+    level = "n2"
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    meaning_btn = WebDriverWait(driver, 10).until(EC.element_to_be_clickable(MEANING_BTN))
+    example_btn = WebDriverWait(driver, 10).until(EC.element_to_be_clickable(EX_BTN))
+    example_btn.click()
+    WebDriverWait(driver, 5).until(EC.visibility_of_element_located(EX_SENTENCE))
+
+    meaning_btn.click()
+    WebDriverWait(driver, 5).until(
+        EC.visibility_of_element_located(FURIGANA),
+        "Furigana did not become visible after clicking Show meaning"
+    )
+    WebDriverWait(driver, 5).until(
+        EC.visibility_of_element_located(MEANING),
+        "Meaning did not become visible after clicking Show meaning"
+    )
+    WebDriverWait(driver, 5).until(
+        EC.visibility_of_element_located(EX_TRANSLATION),
+        "Example translation did not become visible after clicking Show meaning"
+    )
+
+    meaning_btn.click()
+    WebDriverWait(driver, 5).until(
+        EC.invisibility_of_element_located(FURIGANA),
+        "Furigana did not become hidden after second click"
+    )
+    WebDriverWait(driver, 5).until(
+        EC.invisibility_of_element_located(MEANING),
+        "Meaning did not become hidden after second click"
+    )
+    WebDriverWait(driver, 5).until(
+        EC.invisibility_of_element_located(EX_TRANSLATION),
+        "Example translation did not become hidden after second click"
+    )
+
+@pytest.mark.tcid("TC-FC-010")
+@pytest.mark.flashcards
+def test_toggle_state_persists_after_refresh(driver, base_url, admin_email, admin_password):
+    """Verify meaning and example sentence toggle states persist after refresh within the session."""
+
+    level = "n2"
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    meaning_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(MEANING_BTN))
+    example_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(EX_BTN))
+    o_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(O_BTN))
+
+    example_btn.click()
+    meaning_btn.click()
+    WebDriverWait(driver, 2).until(EC.visibility_of_element_located(FURIGANA))
+    WebDriverWait(driver, 2).until(EC.visibility_of_element_located(MEANING))
+    WebDriverWait(driver, 2).until(EC.visibility_of_element_located(EX_TRANSLATION))
+    WebDriverWait(driver, 2).until(EC.visibility_of_element_located(EX_SENTENCE))
+
+    vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+    word_id = vocab.get_attribute("data-word-id")
+    o_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(O_BTN))
+    o_btn.click()
+    wait_for_flashcard_advance(driver, word_id)
+
+    WebDriverWait(driver, 2).until(
+        EC.visibility_of_element_located(FURIGANA),
+        "Furigana toggle did not persist after refresh"
+    )
+    WebDriverWait(driver, 2).until(
+        EC.visibility_of_element_located(MEANING),
+        "Meaning toggle did not persist after refresh"
+    )
+    WebDriverWait(driver, 2).until(
+        EC.visibility_of_element_located(EX_TRANSLATION),
+        "Translation toggle did not persist after refresh"
+    )
+    WebDriverWait(driver, 2).until(
+        EC.visibility_of_element_located(EX_SENTENCE),
+        "Example sentence toggle did not persist after refresh"
+    )
+
+@pytest.mark.tcid("TC-FC-011")
+@pytest.mark.flashcards
+def test_flashcards_progress_counter_format(driver, base_url, admin_email, admin_password):
+    """Verify the progress counter displays in the expected numeric format."""
+
+    level = "n2"
+    login_and_open_flashcards_page(driver, base_url, admin_email, admin_password, level)
+
+    progress_counter = WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
+    text = progress_counter.text.strip()
+    fraction = text.split("(", 1)[0]
+    parts = [part.strip() for part in fraction.split("/", 1)]
+    assert len(parts) == 2, f"Progress counter missing separator: {text}"
+    assert parts[0].isdigit() and parts[1].isdigit(), f"Progress counter not numeric: {text}"
+
+@pytest.mark.tcid("TC-FC-012")
+@pytest.mark.flashcards
+def test_flashcards_progress_counter_updates_on_button_clicks(driver, base_url, admin_email, admin_password):
+    """Verify progress counter increments correctly after clicking O and X buttons."""
+
+    level = "n2"
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
+
+    current, total, _ = get_progress_counts(driver)
+    vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+    word_id = vocab.get_attribute("data-word-id")
+    o_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(O_BTN))
+    o_btn.click()
+    wait_for_flashcard_advance(driver, word_id)
+    WebDriverWait(driver, 5).until(
+        lambda d: get_progress_counts(d)[0] == current + 1,
+        "Progress counter did not increment after O click"
+    )
+    current_after_o, total_after_o, _ = get_progress_counts(driver)
+    assert total_after_o == total, "Total count changed after O click"
+
+    vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+    word_id = vocab.get_attribute("data-word-id")
+    x_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(X_BTN))
+    x_btn.click()
+    wait_for_flashcard_advance(driver, word_id)
+    WebDriverWait(driver, 5).until(
+        lambda d: get_progress_counts(d)[0] == current_after_o,
+        "Progress counter incremented after X click"
+    )
+    current_after_x, total_after_x, _ = get_progress_counts(driver)
+    assert total_after_x == total_after_o, "Total count changed after X click"
+
+@pytest.mark.tcid("TC-FC-013")
+@pytest.mark.flashcards
+def test_rapid_o_clicks_do_not_duplicate_progress(driver, base_url, admin_email, admin_password):
+    """Verify rapid clicking O does not increment the progress counter multiple times."""
+
+    level = "n2"
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
+
+    current, total, _ = get_progress_counts(driver)
+    vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+    word_id = vocab.get_attribute("data-word-id")
+    o_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(O_BTN))
+
+    for _ in range(5):
+        try:
+            driver.execute_script("arguments[0].click();", o_btn)
+        except Exception:
+            break
+
+    wait_for_flashcard_advance(driver, word_id)
+    WebDriverWait(driver, 2).until(lambda d: get_progress_counts(d)[0] >= current + 1)
+    final_current, final_total, _ = get_progress_counts(driver)
+    assert final_total == total, "Total count changed after rapid clicks"
+    assert final_current == current + 1, (
+        f"Progress counter incremented more than once: start={current}, end={final_current}"
+    )
+
+@pytest.mark.tcid("TC-FC-014")
+@pytest.mark.flashcards
+def test_star_button_toggle_updates_favorites_db(driver, base_url, admin_email, admin_password):
+    """Verify star button adds/removes the word in favorites table."""
+
+    level = "n2"
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    cookies = get_auth_cookies(driver)
+    clear_favorites(base_url, cookies)
+    vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+    word_id = int(vocab.get_attribute("data-word-id"))
+
+    fav_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(FAVORITE_BTN))
+    fav_btn.click()
+    ids_after_add = wait_for_favorite_state(base_url, cookies, word_id, expected=True)
+    assert word_id in ids_after_add, "Word was not added to favorites after first click"
+
+    fav_btn.click()
+    ids_after_remove = wait_for_favorite_state(base_url, cookies, word_id, expected=False)
+    assert word_id not in ids_after_remove, "Word was not removed from favorites after second click"
+
+@pytest.mark.tcid("TC-FC-015")
+@pytest.mark.flashcards
+def test_star_button_ui_changes_on_click(driver, base_url, admin_email, admin_password):
+    """Verify star icon toggles between filled and empty states on click."""
+
+    level = "n2"
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    cookies = get_auth_cookies(driver)
+    clear_favorites(base_url, cookies)
+    fav_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(FAVORITE_BTN))
+
+    fav_btn.click()
+    WebDriverWait(driver, 5).until(
+        lambda d: d.find_element(*STAR_BTN).text.strip() == STAR_FILLED,
+        "Star icon did not change to filled after first click"
+    )
+
+    fav_btn.click()
+    WebDriverWait(driver, 5).until(
+        lambda d: d.find_element(*STAR_BTN).text.strip() == STAR_EMPTY,
+        "Star icon did not change to empty after second click"
+    )
+
+@pytest.mark.tcid("TC-FC-016")
+@pytest.mark.flashcards
+def test_star_icon_matches_favorite_state_after_reopen(driver, base_url, admin_email, admin_password):
+    """Verify star icon reflects DB state after leaving and returning to flashcards, with no duplicates."""
+
+    level = "n2"
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    cookies = get_auth_cookies(driver)
+    clear_favorites(base_url, cookies)
+    vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+    word_id = int(vocab.get_attribute("data-word-id"))
+
+    fav_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(FAVORITE_BTN))
+    fav_btn.click()
+    ids = wait_for_favorite_state(base_url, cookies, word_id, expected=True)
+    assert len(ids) == len(set(ids)), f"Duplicate favorite entries detected: {ids}"
+
+    driver.get(f"{base_url}")
+    driver.get(f"{base_url}/study/flashcards/{level}")
+    WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+    ids_after_nav = get_favorite_word_ids(base_url, cookies)
+    displayed_id = int(driver.find_element(*VOCAB).get_attribute("data-word-id"))
+    expected_state = STAR_FILLED if displayed_id in ids_after_nav else STAR_EMPTY
+    WebDriverWait(driver, 5).until(
+        lambda d: d.find_element(*STAR_BTN).text.strip() == expected_state,
+        "Star icon does not match favorite state after returning to flashcards"
+    )
+
+@pytest.mark.tcid("TC-FC-017")
+@pytest.mark.flashcards
+def test_favorite_persists_across_sessions(driver, base_url, admin_email, admin_password):
+    """Verify favorite status persists after logout and login."""
+
+    level = "n2"
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    cookies = get_auth_cookies(driver)
+    clear_favorites(base_url, cookies)
+    vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+    word_id = int(vocab.get_attribute("data-word-id"))
+
+    fav_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(FAVORITE_BTN))
+    fav_btn.click()
+    wait_for_favorite_state(base_url, cookies, word_id, expected=True)
+
+    logout(driver)
+    login_and_open_flashcards_page(driver, base_url, admin_email, admin_password, level)
+    vocab_after = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+    word_id_after = int(vocab_after.get_attribute("data-word-id"))
+    assert word_id_after == word_id, "Flashcard did not persist after re-login"
+
+    cookies = get_auth_cookies(driver)
+    ids = get_favorite_word_ids(base_url, cookies)
+    assert word_id in ids, "Favorited word missing from DB after re-login"
+    WebDriverWait(driver, 5).until(
+        lambda d: d.find_element(*STAR_BTN).text.strip() == STAR_FILLED,
+        "Star icon did not persist as filled after re-login"
+    )
+
+@pytest.mark.tcid("TC-FC-018")
+@pytest.mark.flashcards
+def test_favorites_flashcards_page_shows_only_favorited_words(driver, base_url, admin_email, admin_password):
+    """Verify Favorites flashcards set contains only favorited words."""
+
+    level = "n2"
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+    cookies = get_auth_cookies(driver)
+    clear_favorites(base_url, cookies)
+
+    favorite_ids = set()
+    for _ in range(2):
+        vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+        word_id = int(vocab.get_attribute("data-word-id"))
+        fav_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(FAVORITE_BTN))
+        fav_btn.click()
+        favorite_ids.add(word_id)
+
+        x_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(X_BTN))
+        x_btn.click()
+        wait_for_flashcard_advance(driver, str(word_id), timeout=10)
+
+    driver.get(f"{base_url}/study/flashcards")
+    favorites_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(FAVORITES_BTN))
+    favorites_btn.click()
+
+    cookies = get_auth_cookies(driver)
+    favorites_from_db = set(get_favorite_word_ids(base_url, cookies))
+    assert favorite_ids.issubset(favorites_from_db), "Favorites not saved to DB before opening favorites page"
+
+    displayed_ids = set()
+    for _ in range(len(favorites_from_db)):
+        vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+        current_id = int(vocab.get_attribute("data-word-id"))
+        displayed_ids.add(current_id)
+        assert current_id in favorites_from_db, f"Non-favorited word appeared in Favorites: {current_id}"
+
+        o_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(O_BTN))
+        o_btn.click()
+        try:
+            alert = WebDriverWait(driver, 2).until(EC.alert_is_present())
+            alert.accept()
+            break
+        except TimeoutException:
+            try:
+                wait_for_flashcard_advance(driver, str(current_id), timeout=10)
+            except TimeoutException:
+                o_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(O_BTN))
+                o_btn.click()
+                wait_for_flashcard_advance(driver, str(current_id), timeout=10)
+
+    assert displayed_ids == favorites_from_db, (
+        f"Favorites set mismatch. Expected={favorites_from_db}, displayed={displayed_ids}"
+    )
 @pytest.mark.tcid("TC-FC-019")
 @pytest.mark.flashcards
 def test_flashcard_review_mode_modal_appears(driver, base_url, admin_email, admin_password):

@@ -111,20 +111,30 @@ def login_and_open_quiz_type_selection_page(driver, base_url, email, password, l
 def get_correct_quiz_answer_element(driver, base_url, type):
     """Get the correct quiz answer element."""
     
-    question_element = WebDriverWait(driver, 5).until(
-        EC.presence_of_element_located(QUIZ)
-    )
-    word_id = question_element.get_attribute("data-word-id")
-    word = get_word_from_word_id(base_url, word_id)
-    correct_ans = word['furigana'] if type == "kanji-to-furigana" else word['kanji']    
-    
-    buttons = WebDriverWait(driver, 5).until(
-        EC.presence_of_all_elements_located((By.CSS_SELECTOR, "[data-testid^='answer-']"))
-    )
-    for b in buttons:
-        if b.text[3:] == correct_ans:
-            return b
-    raise AssertionError(f"Correct answer '{correct_ans}' not found among quiz options. B text: {b.text} != {correct_ans}")
+    for _ in range(3):
+        question_element = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located(QUIZ)
+        )
+        word_id = question_element.get_attribute("data-word-id")
+        word = get_word_from_word_id(base_url, word_id)
+        correct_ans = word["furigana"] if type == "kanji-to-furigana" else word["kanji"]
+
+        buttons = WebDriverWait(driver, 5).until(
+            EC.presence_of_all_elements_located((By.CSS_SELECTOR, "[data-testid^='answer-']"))
+        )
+        if any(not b.text.strip() for b in buttons):
+            time.sleep(0.2)
+            continue
+        if question_element.get_attribute("data-word-id") != word_id:
+            time.sleep(0.2)
+            continue
+
+        for b in buttons:
+            if b.text[3:].strip() == correct_ans:
+                return b
+        time.sleep(0.2)
+
+    raise AssertionError(f"Correct answer '{correct_ans}' not found among quiz options")
     
 def click_correct_quiz_answer(driver, base_url, type):
     """Click the correct quiz answer."""

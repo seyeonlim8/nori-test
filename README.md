@@ -1,4 +1,4 @@
-# Nori Test Automation Suite
+# NORI Test Automation Suite
 
 ## Overview
 
@@ -66,7 +66,7 @@ nori-test/
     │   └── test_flashcards.py
     ├── quiz/              # Quiz feature tests
     │   └── test_quiz.py
-    ├── fill/              # Fill-in-the-blank tests
+    ├── fill/              # Fill-in-the-blank feature tests
     │   └── test_fill.py
     ├── level/             # Level selection tests
     │   └── test_level_selection.py

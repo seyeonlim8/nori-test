@@ -1,11 +1,16 @@
+import re
+import time
 import pytest
+import requests
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.common.exceptions import TimeoutException
-from tests.utils.auth_flows import get_auth_cookies, logout
+from selenium.common.exceptions import TimeoutException, UnexpectedAlertPresentException
+from tests.auth.test_auth_email_verification import _dismiss_alert_if_present
+from tests.utils.auth_flows import fill_and_submit_signup, get_auth_cookies, logout, make_unique_username
 from tests.utils.db_client import get_study_progress, get_word_from_word_id
+from tests.utils.email_verification import fetch_verify_url_from_mailhog
 from tests.utils.quiz_flows import answer_all_quizzes_correctly_and_accept_alert, click_correct_quiz_answer, click_incorrect_quiz_answer, dismiss_review_mode_modal, enter_review_mode, get_correct_quiz_answer_element, login_and_open_quiz_page, login_and_open_quiz_page_with_level_reset, login_and_open_quiz_type_selection_page, reset_quiz_level_progress, solve_quizzes, wait_for_completion_state, wait_for_quiz_advance, wait_stays_disabled_until_advance
 
 STUDY_BTN = (By.CSS_SELECTOR, "[data-testid='study-btn']")
@@ -19,6 +24,20 @@ K_TO_F_BTN = (By.CSS_SELECTOR, "[data-testid='kanji-to-furigana-btn']")
 F_TO_K_BTN = (By.CSS_SELECTOR, "[data-testid='furigana-to-kanji-btn']")
 PROG_CNT = (By.CSS_SELECTOR, "[data-testid='progress-counter']")
 PROG_BAR = (By.CSS_SELECTOR, "[data-testid='progress-bar-inner']")
+SUBJECT = "NORI Email Verification"
+
+def get_quiz_progress_counts(driver):
+    text = driver.find_element(*PROG_CNT).text.strip()
+    fraction = text.split("(", 1)[0]
+    current_str, total_str = [part.strip() for part in fraction.split("/", 1)]
+    return int(current_str), int(total_str), text
+
+def get_progress_bar_percent(driver):
+    style = driver.find_element(*PROG_BAR).get_attribute("style") or ""
+    match = re.search(r"width:\s*([0-9.]+)%", style)
+    if not match:
+        raise AssertionError(f"Progress bar width not found in style: {style!r}")
+    return float(match.group(1))
 
 @pytest.mark.tcid("TC-QZ-001")
 @pytest.mark.quiz
@@ -368,6 +387,107 @@ def test_number_keys_select_corresponding_answers(driver, base_url, admin_email,
         )
         wait_for_quiz_advance(driver, old_word_id)
 
+@pytest.mark.tcid("TC-QZ-014")
+@pytest.mark.quiz
+def test_quiz_progress_counter_increments_on_correct_answer(driver, base_url, admin_email, admin_password):
+    """Verify progress counter and bar increment on correct answer and DB marks completion."""
+    
+    level = "TEST"
+    type = "kanji-to-furigana"
+    login_and_open_quiz_page_with_level_reset(driver, base_url, admin_email, admin_password, level, type)
+    
+    WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
+    WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_BAR))
+    current, total, _ = get_quiz_progress_counts(driver)
+    bar_before = get_progress_bar_percent(driver)
+    
+    question = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
+    word_id = question.get_attribute("data-word-id")
+    click_correct_quiz_answer(driver, base_url, type)
+    wait_for_quiz_advance(driver, word_id)
+    
+    WebDriverWait(driver, 10).until(
+        lambda d: get_quiz_progress_counts(d)[0] == current + 1,
+        "Progress counter did not increment after correct answer"
+    )
+    current_after, total_after, _ = get_quiz_progress_counts(driver)
+    assert total_after == total, "Total count changed after correct answer"
+    
+    bar_after = get_progress_bar_percent(driver)
+    assert bar_after > bar_before, "Progress bar did not increase after correct answer"
+    expected_pct = ((current + 1) / total) * 100
+    assert abs(bar_after - expected_pct) < 1.0, (
+        f"Progress bar not proportional: expected~{expected_pct:.1f}%, got {bar_after:.1f}%"
+    )
+    
+    cookies = get_auth_cookies(driver)
+    progress = wait_for_completion_state(base_url, word_id, cookies, expected=True, level=level, type=type)
+    assert progress and progress.get("completed") is True, "Quiz item not marked complete in DB"
+
+@pytest.mark.tcid("TC-QZ-015")
+@pytest.mark.quiz
+def test_quiz_progress_counter_unchanged_on_incorrect_answer(driver, base_url, admin_email, admin_password):
+    """Verify progress counter and bar do not change on incorrect answer and DB remains incomplete."""
+    
+    level = "TEST"
+    type = "furigana-to-kanji"
+    login_and_open_quiz_page_with_level_reset(driver, base_url, admin_email, admin_password, level, type)
+    
+    WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
+    WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_BAR))
+    current, total, _ = get_quiz_progress_counts(driver)
+    bar_before = get_progress_bar_percent(driver)
+    
+    question = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
+    word_id = question.get_attribute("data-word-id")
+    click_incorrect_quiz_answer(driver, base_url, type)
+    wait_for_quiz_advance(driver, word_id)
+    
+    WebDriverWait(driver, 10).until(
+        lambda d: get_quiz_progress_counts(d)[0] == current,
+        "Progress counter changed after incorrect answer"
+    )
+    current_after, total_after, _ = get_quiz_progress_counts(driver)
+    assert current_after == current, "Progress counter incremented after incorrect answer"
+    assert total_after == total, "Total count changed after incorrect answer"
+    
+    bar_after = get_progress_bar_percent(driver)
+    assert abs(bar_after - bar_before) < 0.1, "Progress bar changed after incorrect answer"
+    
+    cookies = get_auth_cookies(driver)
+    progress = wait_for_completion_state(base_url, word_id, cookies, expected=False, level=level, type=type)
+    assert progress is not None and progress.get("completed") is False, "Quiz item incorrectly marked complete in DB"
+
+@pytest.mark.tcid("TC-QZ-016")
+@pytest.mark.quiz
+def test_quiz_rapid_clicking_does_not_duplicate_increment(driver, base_url, admin_email, admin_password):
+    """Verify rapid clicks on the same answer only increment progress once."""
+    
+    level = "TEST"
+    type = "kanji-to-furigana"
+    login_and_open_quiz_page_with_level_reset(driver, base_url, admin_email, admin_password, level, type)
+    
+    WebDriverWait(driver, 5).until(EC.presence_of_element_located(PROG_CNT))
+    current, _, _ = get_quiz_progress_counts(driver)
+    
+    question = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
+    word_id = question.get_attribute("data-word-id")
+    correct_btn = get_correct_quiz_answer_element(driver, base_url, type)
+    
+    for _ in range(5):
+        try:
+            driver.execute_script("arguments[0].click();", correct_btn)
+        except Exception:
+            break
+    
+    wait_for_quiz_advance(driver, word_id)
+    WebDriverWait(driver, 10).until(
+        lambda d: get_quiz_progress_counts(d)[0] == current + 1,
+        "Progress counter did not increment after rapid clicks"
+    )
+    current_after, _, _ = get_quiz_progress_counts(driver)
+    assert current_after == current + 1, "Progress counter incremented more than once after rapid clicks"
+
 @pytest.mark.tcid("TC-QZ-017")
 @pytest.mark.quiz
 def test_quiz_review_mode_modal_appears(driver, base_url, admin_email, admin_password):
@@ -585,6 +705,56 @@ def test_quiz_reset_scope_limited_to_current_level(driver, base_url, admin_email
     current_N5, _ = [int(part.strip()) for part in progress_counter_N5.text.split("/")[:2]]
     assert current_N5 == correct_num, f"N5 progress changed: {progress_counter_N5.text}"
 
+@pytest.mark.tcid("TC-QZ-028")
+@pytest.mark.quiz
+def test_quiz_order_randomized_after_cycle_reset(driver, base_url, admin_email, admin_password):
+    """Verify quiz question order changes after completing and resetting a cycle."""
+    
+    level = "TEST"
+    type = "kanji-to-furigana"
+    login_and_open_quiz_page_with_level_reset(driver, base_url, admin_email, admin_password, level, type)
+    
+    def complete_cycle_and_collect_order():
+        order = []
+        while True:
+            try:
+                question = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
+            except UnexpectedAlertPresentException:
+                alert = WebDriverWait(driver, 2).until(EC.alert_is_present())
+                alert.accept()
+                break
+            current_word_id = question.get_attribute("data-word-id")
+            order.append(current_word_id)
+            click_correct_quiz_answer(driver, base_url, type)
+            try:
+                alert = WebDriverWait(driver, 3).until(EC.alert_is_present())
+                alert.accept()
+                break
+            except TimeoutException:
+                try:
+                    wait_for_quiz_advance(driver, current_word_id, timeout=10)
+                except UnexpectedAlertPresentException:
+                    alert = WebDriverWait(driver, 2).until(EC.alert_is_present())
+                    alert.accept()
+                    break
+                except TimeoutException:
+                    try:
+                        alert = WebDriverWait(driver, 2).until(EC.alert_is_present())
+                        alert.accept()
+                        break
+                    except TimeoutException:
+                        raise
+        return order
+    
+    order_1 = complete_cycle_and_collect_order()
+    order_2 = complete_cycle_and_collect_order()
+    
+    if order_2 == order_1:
+        order_3 = complete_cycle_and_collect_order()
+        assert order_3 != order_1, f"Quiz order did not change across cycles: {order_1}"
+    else:
+        assert order_2 != order_1, f"Quiz order did not change across cycles: {order_1}"
+
 @pytest.mark.tcid("TC-QZ-029")
 @pytest.mark.quiz
 def test_quiz_position_persists_after_page_refresh(driver, base_url, admin_email, admin_password):
@@ -764,3 +934,61 @@ def test_quiz_progress_persists_on_reenter_review_mode(driver, base_url, admin_e
         "Normal mode did not resume on the same quiz: "
         f"before exit={word_id_before_exit}, after re-enter={word_id_after_reentry}"
     )    
+
+@pytest.mark.tcid("TC-QZ-034")
+@pytest.mark.quiz
+def test_quiz_study_progress_deletion_after_account_deletion(driver, base_url, test1_email, test1_password):
+    """Verify that quiz progress is wiped and APIs deny access after deleting the account."""
+    
+    # Sign up and verify account
+    uname = make_unique_username()
+    fill_and_submit_signup(driver, base_url, uname, test1_email, test1_password)
+    _dismiss_alert_if_present(driver)
+    verify_url = fetch_verify_url_from_mailhog(test1_email, SUBJECT, timeout_s=10)
+    driver.get(verify_url)
+    WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located((By.XPATH, "//*[contains(., 'successfully verified')]"))
+    )
+    
+    # Study a few quizzes
+    level = "n2"
+    type = "furigana-to-kanji"
+    login_and_open_quiz_page_with_level_reset(driver, base_url, test1_email, test1_password, level, type)
+    for _ in range(5):
+        quiz = WebDriverWait(driver, 5).until(EC.presence_of_element_located(QUIZ))
+        current_word_id = quiz.get_attribute("data-word-id")
+        click_correct_quiz_answer(driver, base_url, type)
+        wait_for_quiz_advance(driver, current_word_id)
+        
+    # Confirm progress is saved
+    cookies = get_auth_cookies(driver)
+    progress_before = get_study_progress(base_url, cookies, f"quiz-{type}", level)
+    assert progress_before, "Progress is not saved in DB"
+    
+    # Delete account
+    r = requests.delete(
+        f"{base_url}/api/user",
+        cookies=cookies,
+        timeout=5,
+    )
+    r.raise_for_status()
+    
+    # Wait until study-progress API returns 401
+    elapsed = 0
+    while elapsed < 5:
+        resp = requests.get(
+            f"{base_url}/api/study-progress",
+            params={"type": f"quiz-{type}", "level": level},
+            cookies=cookies,
+            timeout=5,
+        )
+        if resp.status_code == 401:
+            break
+        elif resp.status_code >= 400:
+            resp.raise_for_status()
+        time.sleep(0.5)
+        elapsed += 0.5
+    else:
+        pytest.fail(f"Progress API still accessible after account deletion (last status={resp.status_code})")
+
+    assert resp.status_code == 401, f"Expected 401 after account deletion, got {resp.status_code}"

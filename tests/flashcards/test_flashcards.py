@@ -833,6 +833,40 @@ def test_flashcards_reset_scope_limited_to_current_level(driver, base_url, admin
     current_N5, _ = [int(part.strip()) for part in progress_counter_N5.text.split("/")[:2]]
     assert current_N5 == completed_num, f"N5 progress changed: {progress_counter_N5.text}"
     
+@pytest.mark.tcid("TC-FC-030")
+@pytest.mark.flashcards
+def test_flashcard_order_randomized_after_cycle_reset(driver, base_url, admin_email, admin_password):
+    """Verify flashcard order changes after completing and resetting a cycle."""
+    
+    level = "TEST"
+    login_and_open_flashcards_page_with_level_reset(driver, base_url, admin_email, admin_password, level)
+
+    def complete_cycle_and_collect_order():
+        order = []
+        while True:
+            vocab = WebDriverWait(driver, 5).until(EC.presence_of_element_located(VOCAB))
+            word_id = vocab.get_attribute("data-word-id")
+            order.append(word_id)
+            o_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(O_BTN))
+            o_btn.click()
+            try:
+                alert = WebDriverWait(driver, 3).until(EC.alert_is_present())
+                alert.accept()
+                break
+            except TimeoutException:
+                wait_for_flashcard_advance(driver, word_id)
+        return order
+
+    order_1 = complete_cycle_and_collect_order()
+    order_2 = complete_cycle_and_collect_order()
+
+    # order 3 is for flakiness guard (may get identical order for small sets)
+    if order_2 == order_1:
+        order_3 = complete_cycle_and_collect_order()
+        assert order_3 != order_1, f"Flashcard order did not change across cycles: {order_1}"
+    else:
+        assert order_2 != order_1, f"Flashcard order did not change across cycles: {order_1}"
+
 @pytest.mark.tcid("TC-FC-031")
 @pytest.mark.flashcards
 def test_flashcard_position_persists_after_page_refresh(driver, base_url, admin_email, admin_password):

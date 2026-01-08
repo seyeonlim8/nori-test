@@ -36,6 +36,36 @@ def test_email_verification_sent(driver, base_url, test1_email, test1_password):
     body = html or plain
     assert "Verify your email to join NORI" in body and "just ignore this email" in body and "Verify" in body, "Incorrect email body"
 
+@pytest.mark.tcid("TC-AUTH-012")
+@pytest.mark.auth
+def test_verification_link_expired(driver, base_url, test1_email, test1_password):
+    """Verify that expired verification links are rejected and account remains inactive."""
+
+    uname = make_unique_username()
+    fill_and_submit_signup(driver, base_url, uname, test1_email, test1_password)
+    _dismiss_alert_if_present(driver)
+
+    verify_url = fetch_verify_url_from_mailhog(test1_email, SUBJECT, timeout_s=10)
+
+    r = requests.post(
+        f"{base_url}/api/auth/verify/expiry",
+        json={"email": test1_email, "minutesOffset": -5},
+        timeout=5,
+    )
+    r.raise_for_status()
+
+    driver.get(verify_url)
+    WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located(
+            (By.XPATH, "//*[contains(., 'Verification link expired')]")
+        ),
+        message="Expected an expired verification message but none appeared."
+    )
+
+    r = requests.get(f"{base_url}/api/auth/verify", params={"email": test1_email}, timeout=5)
+    r.raise_for_status()
+    assert r.json().get("isVerified") is False, "Account should remain unverified for expired token"
+
 @pytest.mark.tcid("TC-AUTH-013")
 @pytest.mark.auth
 def test_token_uniqueness_with_resend(driver, base_url, test1_email, test1_password):

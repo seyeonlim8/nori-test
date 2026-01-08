@@ -24,7 +24,7 @@ def driver(request):
 
     if browser == "chrome":
         options = ChromeOptions()
-        options.add_argument("--headless=new")
+        #options.add_argument("--headless=new")
         options.add_argument("--window-size=1366,900")
         options.add_argument("--disable-gpu")
         options.add_argument("--no-sandbox")
